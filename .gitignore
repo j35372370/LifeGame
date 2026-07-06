@@ -1,0 +1,9 @@
+node_modules/
+dist/
+build/
+.docusaurus/
+.env
+.env.*
+npm-debug.log*
+.codex-*.log
+.codex-*.err.log

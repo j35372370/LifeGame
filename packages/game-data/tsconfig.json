@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "paths": {
+      "@life-game/schemas": ["../schemas/src/index.ts"]
+    }
+  },
+  "include": ["src", "../schemas/src"]
+}

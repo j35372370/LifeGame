@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "noEmit": true,
+    "paths": {
+      "@life-game/schemas": ["../../packages/schemas/src/index.ts"],
+      "@life-game/game-data": ["../../packages/game-data/src/index.ts"],
+      "@life-game/game-engine": ["../../packages/game-engine/src/index.ts"]
+    }
+  },
+  "include": ["src", "../../packages/*/src"]
+}
