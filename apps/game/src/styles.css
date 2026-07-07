@@ -347,7 +347,8 @@ input {
   gap: 8px;
 }
 
-.asset-row {
+.asset-row,
+.company-row {
   align-items: center;
   border-top: 1px solid #edf2ef;
   display: flex;
@@ -356,27 +357,33 @@ input {
   padding: 10px 0;
 }
 
-.asset-row:first-child {
+.asset-row:first-child,
+.company-row:first-child {
   border-top: 0;
   padding-top: 0;
 }
 
 .asset-row strong,
-.asset-row span {
+.asset-row span,
+.company-row strong,
+.company-row span {
   display: block;
 }
 
-.asset-row strong {
+.asset-row strong,
+.company-row strong {
   font-size: 14px;
 }
 
-.asset-row span {
+.asset-row span,
+.company-row span {
   color: #60746b;
   font-size: 12px;
   margin-top: 3px;
 }
 
-.asset-row em {
+.asset-row em,
+.company-row em {
   color: #173f35;
   font-style: normal;
   font-weight: 800;

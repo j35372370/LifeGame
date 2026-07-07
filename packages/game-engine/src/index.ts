@@ -69,12 +69,33 @@ export function createInitialGameState(now = new Date().toISOString()): GameStat
     liabilityTotal: 0
   };
 
+  const playerCorporation: ICorporation = {
+    id: "corp-player-blue-harbor",
+    name: "블루하버 홀딩스",
+    industryIds: ["industry-retail-services"],
+    accountId: "corp-account-player-blue-harbor",
+    representativePersonId: person.id,
+    foundedAt: now,
+    shareCapital: 20_000_000,
+    totalShares: 20_000,
+    isPublic: false
+  };
+
+  const playerShareholding: IShareholding = {
+    id: "shareholding-player-blue-harbor",
+    shareholderPersonId: person.id,
+    corporationId: playerCorporation.id,
+    shares: playerCorporation.totalShares,
+    acquiredPricePerShare: playerCorporation.shareCapital / playerCorporation.totalShares,
+    acquiredAt: now
+  };
+
   return {
     users: [user],
     persons: [person],
     personalAccounts: [account],
-    corporations: [...basicNpcCorporations],
-    shareholdings: [],
+    corporations: [playerCorporation, ...basicNpcCorporations],
+    shareholdings: [playerShareholding],
     employmentContracts: [],
     personalAssets: [],
     npcAgents: [

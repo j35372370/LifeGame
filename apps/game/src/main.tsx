@@ -158,13 +158,13 @@ function DetailPage({ item, state, onBack }: { item: MenuItem; state: GameState;
 function renderDetailContent(page: PageKey, state: GameState) {
   switch (page) {
     case "company":
-      return <EmptyDetail title="운영 회사 없음" body="아직 플레이어가 대표로 운영하는 회사가 없습니다." />;
+      return <CompanyDetail state={state} />;
     case "stocks":
       return <ListDetail items={state.shareholdings.map((item) => `${item.corporationId} ${item.shares.toLocaleString("ko-KR")}주`)} empty="보유 지분이 없습니다." />;
     case "news":
       return <ListDetail items={state.newsArticles.map((item) => item.headline)} empty="표시할 뉴스가 없습니다." />;
     case "personal-assets":
-      return <PersonalAssetsDetail state={state} />;
+      return <PersonalStatusDetail state={state} />;
     case "asset-trading":
       return <EmptyDetail title="자산 거래" body="개인 자산 매입, 매각, 가치 평가 기능을 연결할 예정입니다." />;
     case "event-log":
@@ -172,7 +172,30 @@ function renderDetailContent(page: PageKey, state: GameState) {
   }
 }
 
-function PersonalAssetsDetail({ state }: { state: GameState }) {
+function CompanyDetail({ state }: { state: GameState }) {
+  const player = state.persons[0];
+  const operatingCompanies = state.corporations.filter((corporation) => corporation.representativePersonId === player.id);
+
+  if (operatingCompanies.length === 0) {
+    return <EmptyDetail title="운영 회사 없음" body="아직 플레이어가 대표로 운영하는 회사가 없습니다." />;
+  }
+
+  return (
+    <div className="detail-list">
+      {operatingCompanies.map((corporation) => (
+        <div key={corporation.id} className="company-row">
+          <div>
+            <strong>{corporation.name}</strong>
+            <span>비상장 회사 · 발행주식 {corporation.totalShares.toLocaleString("ko-KR")}주</span>
+          </div>
+          <em>{formatKrw(corporation.shareCapital)}</em>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PersonalStatusDetail({ state }: { state: GameState }) {
   const player = state.persons[0];
   const account = state.personalAccounts.find((item) => item.id === player.accountId);
   const realEstateAssets = state.personalAssets.filter((asset) => asset.assetTypeId.includes("apartment") || asset.assetTypeId.includes("office"));
@@ -306,14 +329,14 @@ function createMenuItems(hasOperatingCompany: boolean): MenuItem[] {
       { key: "company", title: "회사 운영", description: "운영 회사와 경영 상태", icon: <Building2 size={24} /> },
       { key: "stocks", title: "주식 거래", description: "지분과 투자 내역", icon: <BarChart3 size={24} /> },
       { key: "news", title: "뉴스", description: "공개 기사와 브리핑", icon: <Newspaper size={24} /> },
-      { key: "personal-assets", title: "개인 자산", description: "현금과 보유 자산", icon: <WalletCards size={24} /> },
+      { key: "personal-assets", title: "개인 현황", description: "현금, 자산, 소속회사, 수입과 지출", icon: <WalletCards size={24} /> },
       { key: "asset-trading", title: "자산 거래", description: "개인 자산 매입과 매각", icon: <Landmark size={24} /> },
       { key: "event-log", title: "이벤트 로그", description: "원본 사건 기록", icon: <FileText size={24} /> }
     ];
   }
 
   return [
-    { key: "personal-assets", title: "개인 자산", description: "회사 운영 대신 개인 자산을 관리합니다.", icon: <WalletCards size={24} /> },
+    { key: "personal-assets", title: "개인 현황", description: "회사 운영 대신 개인 현황을 관리합니다.", icon: <WalletCards size={24} /> },
     { key: "stocks", title: "주식 거래", description: "지분과 투자 내역", icon: <BarChart3 size={24} /> },
     { key: "news", title: "뉴스", description: "공개 기사와 브리핑", icon: <Newspaper size={24} /> },
     { key: "asset-trading", title: "자산 거래", description: "개인 자산 매입과 매각", icon: <Landmark size={24} /> },
