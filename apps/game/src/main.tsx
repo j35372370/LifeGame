@@ -1,12 +1,16 @@
-import { useMemo, useState } from "react";
+import { Children, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   ArrowLeft,
   BarChart3,
   Building2,
+  CreditCard,
   FileText,
   Landmark,
   Newspaper,
+  ReceiptText,
+  TrendingDown,
+  TrendingUp,
   WalletCards
 } from "lucide-react";
 import { createInitialGameState, type GameState } from "@life-game/game-engine";
@@ -160,12 +164,106 @@ function renderDetailContent(page: PageKey, state: GameState) {
     case "news":
       return <ListDetail items={state.newsArticles.map((item) => item.headline)} empty="표시할 뉴스가 없습니다." />;
     case "personal-assets":
-      return <ListDetail items={state.personalAssets.map((item) => `${item.name} ${formatKrw(item.currentValue)}`)} empty="보유 개인 자산이 없습니다." />;
+      return <PersonalAssetsDetail state={state} />;
     case "asset-trading":
       return <EmptyDetail title="자산 거래" body="개인 자산 매입, 매각, 가치 평가 기능을 연결할 예정입니다." />;
     case "event-log":
       return <ListDetail items={state.eventLogs.map((item) => item.title)} empty="이벤트 로그가 없습니다." />;
   }
+}
+
+function PersonalAssetsDetail({ state }: { state: GameState }) {
+  const player = state.persons[0];
+  const account = state.personalAccounts.find((item) => item.id === player.accountId);
+  const realEstateAssets = state.personalAssets.filter((asset) => asset.assetTypeId.includes("apartment") || asset.assetTypeId.includes("office"));
+  const otherAssets = state.personalAssets.filter((asset) => !realEstateAssets.includes(asset));
+  const activeEmployments = state.employmentContracts.filter((contract) => contract.personId === player.id && !contract.endedAt);
+  const ownedBonds = state.personalAssets.filter((asset) => asset.assetTypeId.includes("bond"));
+  const monthlySalaryIncome = activeEmployments.reduce((sum, contract) => sum + contract.monthlySalary, 0);
+  const estimatedDividendIncome = state.shareholdings.length * 120_000;
+  const expectedIncome = monthlySalaryIncome + estimatedDividendIncome;
+  const estimatedLivingCost = 1_200_000;
+  const estimatedLoanInterest = Math.round((account?.liabilityTotal ?? 0) * 0.004);
+  const expectedExpense = estimatedLivingCost + estimatedLoanInterest;
+
+  return (
+    <div className="asset-page">
+      <section className="finance-summary-grid">
+        <SummaryCard icon={<WalletCards size={20} />} label="보유 현금" value={formatKrw(account?.cashBalance ?? 0)} />
+        <SummaryCard icon={<CreditCard size={20} />} label="상환해야 하는 대출금" value={formatKrw(account?.liabilityTotal ?? 0)} />
+        <SummaryCard icon={<ReceiptText size={20} />} label="매달 지출 예정 이자" value={formatKrw(estimatedLoanInterest)} />
+        <SummaryCard icon={<TrendingUp size={20} />} label="이번달 예상 수입" value={formatKrw(expectedIncome)} />
+        <SummaryCard icon={<TrendingDown size={20} />} label="이번달 예상 지출" value={formatKrw(expectedExpense)} />
+      </section>
+
+      <section className="asset-section-grid">
+        <AssetSection title="보유한 부동산 목록" empty="보유한 부동산이 없습니다.">
+          {realEstateAssets.map((asset) => (
+            <AssetRow key={asset.id} name={asset.name} meta={asset.assetTypeId} value={formatKrw(asset.currentValue)} />
+          ))}
+        </AssetSection>
+
+        <AssetSection title="기타 자산 목록" empty="기타 자산이 없습니다.">
+          {otherAssets.map((asset) => (
+            <AssetRow key={asset.id} name={asset.name} meta={asset.assetTypeId} value={formatKrw(asset.currentValue)} />
+          ))}
+        </AssetSection>
+
+        <AssetSection title="보유 채권" empty="보유 채권이 없습니다.">
+          {ownedBonds.map((asset) => (
+            <AssetRow key={asset.id} name={asset.name} meta="채권형 자산" value={formatKrw(asset.currentValue)} />
+          ))}
+        </AssetSection>
+
+        <AssetSection title="소속회사와 직급" empty="현재 소속회사가 없습니다.">
+          {activeEmployments.map((contract) => {
+            const corporation = state.corporations.find((item) => item.id === contract.corporationId);
+            return (
+              <AssetRow
+                key={contract.id}
+                name={corporation?.name ?? contract.corporationId}
+                meta={contract.title}
+                value={`월급 ${formatKrw(contract.monthlySalary)}`}
+              />
+            );
+          })}
+        </AssetSection>
+      </section>
+    </div>
+  );
+}
+
+function SummaryCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="summary-card">
+      <span className="summary-icon">{icon}</span>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function AssetSection({ title, empty, children }: { title: string; empty: string; children: React.ReactNode }) {
+  const childArray = Children.toArray(children);
+
+  return (
+    <section className="asset-section">
+      <h3>{title}</h3>
+      {childArray.length > 0 ? <div className="asset-list">{childArray}</div> : <p className="empty-state">{empty}</p>}
+    </section>
+  );
+}
+
+function AssetRow({ name, meta, value }: { name: string; meta: string; value: string }) {
+  return (
+    <div className="asset-row">
+      <div>
+        <strong>{name}</strong>
+        <span>{meta}</span>
+      </div>
+      <em>{value}</em>
+    </div>
+  );
 }
 
 function EmptyDetail({ title, body }: { title: string; body: string }) {

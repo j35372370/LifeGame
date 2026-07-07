@@ -71,6 +71,11 @@ h2 {
   font-size: 24px;
 }
 
+h3 {
+  font-size: 16px;
+  margin: 0;
+}
+
 .login-copy {
   color: #5b7067;
   line-height: 1.5;
@@ -276,6 +281,109 @@ input {
   padding: 12px;
 }
 
+.asset-page {
+  display: grid;
+  gap: 18px;
+}
+
+.finance-summary-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.summary-card {
+  background: #f7faf8;
+  border: 1px solid #dce6e0;
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  min-height: 124px;
+  padding: 14px;
+}
+
+.summary-icon {
+  align-items: center;
+  background: #e5eee9;
+  border-radius: 8px;
+  color: #173f35;
+  display: inline-flex;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+}
+
+.summary-card span:not(.summary-icon) {
+  color: #60746b;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.summary-card strong {
+  font-size: 17px;
+  line-height: 1.25;
+  word-break: keep-all;
+}
+
+.asset-section-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.asset-section {
+  border: 1px solid #e1e8e3;
+  border-radius: 8px;
+  min-height: 160px;
+  padding: 16px;
+}
+
+.asset-section h3 {
+  margin-bottom: 12px;
+}
+
+.asset-list {
+  display: grid;
+  gap: 8px;
+}
+
+.asset-row {
+  align-items: center;
+  border-top: 1px solid #edf2ef;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 10px 0;
+}
+
+.asset-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.asset-row strong,
+.asset-row span {
+  display: block;
+}
+
+.asset-row strong {
+  font-size: 14px;
+}
+
+.asset-row span {
+  color: #60746b;
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+.asset-row em {
+  color: #173f35;
+  font-style: normal;
+  font-weight: 800;
+  text-align: right;
+  white-space: nowrap;
+}
+
 @media (max-width: 860px) {
   .topbar {
     align-items: stretch;
@@ -284,7 +392,9 @@ input {
 
   .capital-strip,
   .menu-grid,
-  .menu-grid.no-company {
+  .menu-grid.no-company,
+  .finance-summary-grid,
+  .asset-section-grid {
     grid-template-columns: 1fr;
   }
 
