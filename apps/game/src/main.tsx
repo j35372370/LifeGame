@@ -827,15 +827,17 @@ function StockHoldingRow({
   const ownershipRatio = totalShares > 0 ? (holding.shares / totalShares) * 100 : 0;
   const holdingValue = holding.shares * holding.acquiredPricePerShare;
   const marketPrice = Math.round(holding.acquiredPricePerShare * (corporation?.isPublic ? 1.05 : 1));
-  const expectedShares = calculateSellShareCount(holding.shares, sellBasis, Number(sellAmount));
-  const expectedProceeds = expectedShares * Number(pricePerShare || 0);
+  const parsedSellAmount = sellBasis === "shares" ? parseFormattedNumber(sellAmount) : Number(sellAmount);
+  const parsedPricePerShare = parseFormattedNumber(pricePerShare);
+  const expectedShares = calculateSellShareCount(holding.shares, sellBasis, parsedSellAmount);
+  const expectedProceeds = expectedShares * parsedPricePerShare;
 
   function submitSale() {
     const result = validateShareSale({
       holding,
       corporationIsPublic: corporation?.isPublic ?? false,
       sellSharesCount: expectedShares,
-      pricePerShare: Number(pricePerShare),
+      pricePerShare: parsedPricePerShare,
       marketPrice,
       buyerName
     });
@@ -848,7 +850,7 @@ function StockHoldingRow({
     const saleRequest = {
       shareholdingId: holding.id,
       sellSharesCount: expectedShares,
-      pricePerShare: Number(pricePerShare)
+      pricePerShare: parsedPricePerShare
     };
 
     if (!corporation?.isPublic) {
@@ -859,7 +861,7 @@ function StockHoldingRow({
         type: "SHARE_SALE_REQUEST",
         categoryLabel: "지분 매각",
         title: `${corporation?.name ?? holding.corporationId} 주식 매각 요청`,
-        body: `${buyerName}에게 ${expectedShares.toLocaleString("ko-KR")}주를 1주당 ${formatKrw(Number(pricePerShare))}에 매각하는 동의 요청을 보냈습니다.`,
+        body: `${buyerName}에게 ${expectedShares.toLocaleString("ko-KR")}주를 1주당 ${formatKrw(parsedPricePerShare)}에 매각하는 동의 요청을 보냈습니다.`,
         status: "PENDING",
         createdAt: new Date().toISOString(),
         requestedAt: new Date().toISOString(),
@@ -888,22 +890,31 @@ function StockHoldingRow({
       </div>
       <div className="stock-sale-form">
         <div className="sale-control-row">
-          <select value={sellBasis} onChange={(event) => setSellBasis(event.target.value as "shares" | "ratio")}>
+          <select
+            value={sellBasis}
+            onChange={(event) => {
+              const nextBasis = event.target.value as "shares" | "ratio";
+              setSellBasis(nextBasis);
+              setSellAmount(nextBasis === "shares" ? formatNumberInput(sellAmount) : String(parsedSellAmount || ""));
+            }}
+          >
             <option value="shares">주식 수</option>
             <option value="ratio">지분율</option>
           </select>
           <input
             min="0"
-            type="number"
+            inputMode={sellBasis === "shares" ? "numeric" : "decimal"}
             value={sellAmount}
-            onChange={(event) => setSellAmount(event.target.value)}
+            onChange={(event) =>
+              setSellAmount(sellBasis === "shares" ? formatNumberInput(event.target.value) : event.target.value)
+            }
             aria-label="매각 기준 값"
           />
           <input
             min="0"
-            type="number"
+            inputMode="numeric"
             value={pricePerShare}
-            onChange={(event) => setPricePerShare(event.target.value)}
+            onChange={(event) => setPricePerShare(formatNumberInput(event.target.value))}
             aria-label="1주당 매각가"
           />
         </div>
