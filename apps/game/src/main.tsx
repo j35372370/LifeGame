@@ -40,6 +40,7 @@ type NotificationType =
   | "SHARE_SALE_REQUEST";
 
 type VoteChoice = "APPROVE" | "REJECT" | "ABSTAIN";
+type VoteBasis = "MEMBER" | "SHARE";
 
 interface UserNotification {
   id: string;
@@ -53,6 +54,8 @@ interface UserNotification {
   responseDueAt: string;
   submitter: string;
   agendaContent: string;
+  voteBasis?: VoteBasis;
+  voteCorporationId?: string;
   voteStats?: {
     approveCount: number;
     rejectCount: number;
@@ -65,7 +68,7 @@ interface UserNotification {
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [state, setState] = useState<GameState>(() => createInitialGameState());
-  const [notifications, setNotifications] = useState<UserNotification[]>(() => createInitialNotifications());
+  const [notifications, setNotifications] = useState<UserNotification[]>(() => createInitialNotifications(state));
   const [activePage, setActivePage] = useState<PageKey | null>(null);
 
   if (!isLoggedIn) {
@@ -324,6 +327,7 @@ function PersonalStatusDetail({
 
       <section className="asset-section-grid">
         <NotificationSection
+          state={state}
           notifications={notifications}
           onAccept={(notification) => {
             if (notification.saleRequest) {
@@ -340,7 +344,7 @@ function PersonalStatusDetail({
           }
           onVote={(notification, vote) =>
             onUpdateNotification((current) =>
-              current.map((item) => (item.id === notification.id ? applyVoteChoice(item, vote) : item))
+              current.map((item) => (item.id === notification.id ? applyVoteChoice(item, vote, state) : item))
             )
           }
           onDelete={(notification) =>
@@ -387,12 +391,14 @@ function PersonalStatusDetail({
 }
 
 function NotificationSection({
+  state,
   notifications,
   onAccept,
   onReject,
   onVote,
   onDelete
 }: {
+  state: GameState;
   notifications: UserNotification[];
   onAccept: (notification: UserNotification) => void;
   onReject: (notification: UserNotification) => void;
@@ -416,6 +422,7 @@ function NotificationSection({
             const canRespond = canRespondToNotification(notification);
             const actionLabels = notificationActionLabels(notification.type);
             const isVoting = isVotingNotification(notification);
+            const voteWeight = getUserVoteWeight(notification, state);
 
             return (
               <article key={notification.id} className={isExpanded ? "notification-row expanded" : "notification-row"}>
@@ -438,11 +445,12 @@ function NotificationSection({
                     <DetailPair label="의견 표명 가능일" value={formatDateTime(notification.responseDueAt)} />
                     <DetailPair label="상태" value={notificationStatusLabel(notification.status)} />
                     {isVoting ? <DetailPair label="내 선택" value={voteChoiceLabel(notification.userVote)} /> : null}
+                    {isVoting ? <DetailPair label="내 의결권" value={formatVoteWeight(voteWeight, notification.voteBasis)} /> : null}
                     <div className="agenda-content">
                       <span>안건 내용</span>
                       <p>{notification.agendaContent}</p>
                     </div>
-                    {notification.voteStats ? <VoteStats stats={notification.voteStats} /> : null}
+                    {notification.voteStats ? <VoteStats stats={notification.voteStats} basis={notification.voteBasis} /> : null}
                     {notification.saleRequest ? (
                       <>
                         <DetailPair label="매각 주식 수" value={`${notification.saleRequest.sellSharesCount.toLocaleString("ko-KR")}주`} />
@@ -533,12 +541,13 @@ function voteChoiceLabel(vote?: VoteChoice): string {
   }
 }
 
-function applyVoteChoice(notification: UserNotification, nextVote: VoteChoice): UserNotification {
+function applyVoteChoice(notification: UserNotification, nextVote: VoteChoice, state: GameState): UserNotification {
   if (!notification.voteStats || !isVotingNotification(notification)) {
     return notification;
   }
 
   const voteStats = { ...notification.voteStats };
+  const voteWeight = getUserVoteWeight(notification, state);
   const adjust = (vote: VoteChoice, amount: number) => {
     if (vote === "APPROVE") {
       voteStats.approveCount = Math.max(0, voteStats.approveCount + amount);
@@ -551,10 +560,8 @@ function applyVoteChoice(notification: UserNotification, nextVote: VoteChoice): 
     }
   };
 
-  if (notification.userVote) {
-    adjust(notification.userVote, -1);
-  }
-  adjust(nextVote, 1);
+  adjust(notification.userVote ?? "ABSTAIN", -voteWeight);
+  adjust(nextVote, voteWeight);
 
   return {
     ...notification,
@@ -563,15 +570,36 @@ function applyVoteChoice(notification: UserNotification, nextVote: VoteChoice): 
   };
 }
 
-function VoteStats({ stats }: { stats: NonNullable<UserNotification["voteStats"]> }) {
+function getUserVoteWeight(notification: UserNotification, state: GameState): number {
+  if (notification.voteBasis !== "SHARE") {
+    return 1;
+  }
+
+  const playerPersonId = state.users[0]?.personId;
+  if (!playerPersonId || !notification.voteCorporationId) {
+    return 0;
+  }
+
+  return state.shareholdings
+    .filter((holding) => holding.shareholderPersonId === playerPersonId && holding.corporationId === notification.voteCorporationId)
+    .reduce((sum, holding) => sum + holding.shares, 0);
+}
+
+function formatVoteWeight(weight: number, basis?: VoteBasis): string {
+  const unit = basis === "SHARE" ? "주" : "표";
+  return `${weight.toLocaleString("ko-KR")}${unit}`;
+}
+
+function VoteStats({ stats, basis }: { stats: NonNullable<UserNotification["voteStats"]>; basis?: VoteBasis }) {
   const total = stats.approveCount + stats.rejectCount + stats.abstainCount;
   const percent = (count: number) => (total > 0 ? `${((count / total) * 100).toFixed(1)}%` : "0.0%");
+  const unit = basis === "SHARE" ? "주" : "명";
 
   return (
     <div className="vote-stats">
-      <DetailPair label="찬성" value={`${stats.approveCount.toLocaleString("ko-KR")}명 · ${percent(stats.approveCount)}`} />
-      <DetailPair label="반대" value={`${stats.rejectCount.toLocaleString("ko-KR")}명 · ${percent(stats.rejectCount)}`} />
-      <DetailPair label="기권/미표명" value={`${stats.abstainCount.toLocaleString("ko-KR")}명 · ${percent(stats.abstainCount)}`} />
+      <DetailPair label="찬성" value={`${stats.approveCount.toLocaleString("ko-KR")}${unit} · ${percent(stats.approveCount)}`} />
+      <DetailPair label="반대" value={`${stats.rejectCount.toLocaleString("ko-KR")}${unit} · ${percent(stats.rejectCount)}`} />
+      <DetailPair label="기권/미표명" value={`${stats.abstainCount.toLocaleString("ko-KR")}${unit} · ${percent(stats.abstainCount)}`} />
     </div>
   );
 }
@@ -822,8 +850,14 @@ function validateShareSale({
   return { ok: true, message: "매각할 수 있습니다." };
 }
 
-function createInitialNotifications(): UserNotification[] {
+function createInitialNotifications(state: GameState): UserNotification[] {
   const now = new Date().toISOString();
+  const playerCorporation = state.corporations.find((corporation) => corporation.representativePersonId === state.users[0]?.personId);
+  const shareholderMeetingCorporationId = playerCorporation?.id ?? "corp-player-blue-harbor";
+  const shareholderMeetingCorporationName = playerCorporation?.name ?? "블루하버 홀딩스";
+  const playerShareVotes = state.shareholdings
+    .filter((holding) => holding.shareholderPersonId === state.users[0]?.personId && holding.corporationId === shareholderMeetingCorporationId)
+    .reduce((sum, holding) => sum + holding.shares, 0);
 
   return [
     {
@@ -837,6 +871,7 @@ function createInitialNotifications(): UserNotification[] {
       requestedAt: now,
       responseDueAt: addDaysIso(5),
       submitter: "김도윤 대표이사 / 한서연 사외이사",
+      voteBasis: "MEMBER",
       agendaContent:
         "수도권 남부 물류센터 임차 및 자동화 설비 도입에 12,000,000원을 투자하는 안건입니다. 월 고정비는 증가하지만 유통/서비스 매출 기반 확장을 기대합니다.",
       voteStats: {
@@ -850,18 +885,20 @@ function createInitialNotifications(): UserNotification[] {
       type: "SHAREHOLDER_MEETING_VOTE",
       categoryLabel: "배당 안건",
       title: "주주총회 의결권 행사 요청",
-      body: "아라중공업 정기주주총회 배당 정책 안건에 대한 찬반 선택이 필요합니다.",
+      body: `${shareholderMeetingCorporationName} 정기주주총회 배당 정책 안건에 대한 찬반 선택이 필요합니다.`,
       status: "PENDING",
       createdAt: now,
       requestedAt: now,
       responseDueAt: addDaysIso(10),
-      submitter: "아라중공업 이사회",
+      submitter: `${shareholderMeetingCorporationName} 이사회`,
+      voteBasis: "SHARE",
+      voteCorporationId: shareholderMeetingCorporationId,
       agendaContent:
         "당기 순이익 중 일부를 배당으로 지급하고 나머지를 방산 설비 개선에 유보하는 안건입니다. 주주는 의결권 행사 가능일까지 찬반을 표명할 수 있습니다.",
       voteStats: {
-        approveCount: 184,
-        rejectCount: 37,
-        abstainCount: 12
+        approveCount: 0,
+        rejectCount: 0,
+        abstainCount: playerShareVotes
       }
     },
     {
