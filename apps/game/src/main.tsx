@@ -335,6 +335,9 @@ function PersonalStatusDetail({
               current.map((item) => (item.id === notification.id ? { ...item, status: "REJECTED" } : item))
             )
           }
+          onDelete={(notification) =>
+            onUpdateNotification((current) => current.filter((item) => item.id !== notification.id))
+          }
         />
 
         <AssetSection title="보유한 부동산 목록" empty="보유한 부동산이 없습니다.">
@@ -378,11 +381,13 @@ function PersonalStatusDetail({
 function NotificationSection({
   notifications,
   onAccept,
-  onReject
+  onReject,
+  onDelete
 }: {
   notifications: UserNotification[];
   onAccept: (notification: UserNotification) => void;
   onReject: (notification: UserNotification) => void;
+  onDelete: (notification: UserNotification) => void;
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(notifications[0]?.id ?? null);
 
@@ -447,6 +452,9 @@ function NotificationSection({
                       <button className="secondary-button" onClick={() => onReject(notification)}>거절</button>
                     </>
                   ) : null}
+                  <button className="danger-button" onClick={() => onDelete(notification)}>
+                    삭제
+                  </button>
                 </div>
               </article>
             );
@@ -730,9 +738,14 @@ function createInitialNotifications(): UserNotification[] {
       createdAt: now,
       requestedAt: now,
       responseDueAt: addDaysIso(5),
-      submitter: "블루하버 홀딩스 이사회",
+      submitter: "김도윤 대표이사 / 한서연 사외이사",
       agendaContent:
-        "수도권 남부 물류센터 임차 및 자동화 설비 도입에 12,000,000원을 투자하는 안건입니다. 월 고정비는 증가하지만 유통/서비스 매출 기반 확장을 기대합니다."
+        "수도권 남부 물류센터 임차 및 자동화 설비 도입에 12,000,000원을 투자하는 안건입니다. 월 고정비는 증가하지만 유통/서비스 매출 기반 확장을 기대합니다.",
+      voteStats: {
+        approveCount: 3,
+        rejectCount: 1,
+        abstainCount: 1
+      }
     },
     {
       id: "notification-shareholder-meeting-1",

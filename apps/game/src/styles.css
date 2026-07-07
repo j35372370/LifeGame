@@ -563,6 +563,11 @@ input {
   color: #173f35;
 }
 
+.notification-actions .danger-button {
+  background: #8f2f2f;
+  color: #ffffff;
+}
+
 .stock-row {
   align-items: start;
   border: 1px solid #e1e8e3;
