@@ -487,17 +487,21 @@ function NotificationSection({
                           <div className="counter-offer-form">
                             <label>
                               대안 금액
-                              <input
-                                inputMode="numeric"
-                                value={counterDraft.price}
-                                onChange={(event) =>
-                                  setCounterDrafts((current) => ({
-                                    ...current,
-                                    [notification.id]: { ...counterDraft, price: event.target.value }
-                                  }))
-                                }
-                                placeholder="예: 7600000"
-                              />
+                              <div className="amount-input-row">
+                                <input
+                                  inputMode="numeric"
+                                  value={counterDraft.price}
+                                  onChange={(event) => {
+                                    const formattedPrice = formatNumberInput(event.target.value);
+                                    setCounterDrafts((current) => ({
+                                      ...current,
+                                      [notification.id]: { ...counterDraft, price: formattedPrice }
+                                    }));
+                                  }}
+                                  placeholder="예: 7,600,000"
+                                />
+                                <strong>{formatEokEstimate(parseFormattedNumber(counterDraft.price))}</strong>
+                              </div>
                             </label>
                             <label>
                               대안 설명
@@ -562,7 +566,7 @@ function NotificationSection({
                       <button
                         className="secondary-button"
                         onClick={() => {
-                          const counterPrice = Number(counterDraft.price);
+                          const counterPrice = parseFormattedNumber(counterDraft.price);
                           if (!Number.isFinite(counterPrice) || counterPrice <= 0) return;
                           onCounterAssetTrade(notification, counterPrice, counterDraft.message.trim());
                         }}
@@ -1164,6 +1168,23 @@ function createMenuItems(hasOperatingCompany: boolean): MenuItem[] {
 
 function formatKrw(value: number): string {
   return `${value.toLocaleString("ko-KR")}원`;
+}
+
+function parseFormattedNumber(value: string): number {
+  return Number(value.replaceAll(",", ""));
+}
+
+function formatNumberInput(value: string): string {
+  const digitsOnly = value.replace(/\D/g, "");
+  if (!digitsOnly) return "";
+  return Number(digitsOnly).toLocaleString("ko-KR");
+}
+
+function formatEokEstimate(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return "(0억)";
+  const eok = value / 100_000_000;
+  const formatted = eok >= 1 ? eok.toLocaleString("ko-KR", { maximumFractionDigits: 1 }) : eok.toFixed(2);
+  return `(${formatted}억)`;
 }
 
 createRoot(document.getElementById("root")!).render(<App />);
