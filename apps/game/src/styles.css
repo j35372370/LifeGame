@@ -507,6 +507,40 @@ input {
   overflow-wrap: anywhere;
 }
 
+.agenda-content {
+  border-top: 1px solid #edf2ef;
+  display: grid;
+  gap: 6px;
+  grid-column: 1 / -1;
+  padding-top: 10px;
+}
+
+.agenda-content span {
+  color: #60746b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.agenda-content p {
+  color: #1e2724;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.vote-stats {
+  display: grid;
+  gap: 8px;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.vote-stats .detail-pair {
+  background: #f7faf8;
+  border: 1px solid #e1e8e3;
+  border-radius: 6px;
+  padding: 8px;
+}
+
 .notification-actions {
   display: flex;
   gap: 8px;
@@ -654,7 +688,8 @@ input {
   .stock-row,
   .sale-control-row,
   .private-sale-controls,
-  .notification-detail {
+  .notification-detail,
+  .vote-stats {
     grid-template-columns: 1fr;
   }
 

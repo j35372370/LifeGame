@@ -42,10 +42,20 @@ type NotificationType =
 interface UserNotification {
   id: string;
   type: NotificationType;
+  categoryLabel: string;
   title: string;
   body: string;
   status: "PENDING" | "ACCEPTED" | "REJECTED" | "INFO";
   createdAt: string;
+  requestedAt: string;
+  responseDueAt: string;
+  submitter: string;
+  agendaContent: string;
+  voteStats?: {
+    approveCount: number;
+    rejectCount: number;
+    abstainCount: number;
+  };
   saleRequest?: SellShareRequest;
 }
 
@@ -397,17 +407,23 @@ function NotificationSection({
                     <span>{notification.body}</span>
                   </div>
                   <div className="notification-meta">
-                    <em>{notificationTypeLabel(notification.type)}</em>
+                    <em>{notification.categoryLabel}</em>
                     <em>{notificationStatusLabel(notification.status)}</em>
                   </div>
                 </div>
 
                 {isExpanded ? (
                   <div className="notification-detail">
-                    <DetailPair label="알림 ID" value={notification.id} />
-                    <DetailPair label="알림 종류" value={notificationTypeLabel(notification.type)} />
+                    <DetailPair label="안건 종류" value={notification.categoryLabel} />
+                    <DetailPair label="안건 제출자" value={notification.submitter} />
+                    <DetailPair label="의견 확인 요청일" value={formatDateTime(notification.requestedAt)} />
+                    <DetailPair label="의견 표명 가능일" value={formatDateTime(notification.responseDueAt)} />
                     <DetailPair label="상태" value={notificationStatusLabel(notification.status)} />
-                    <DetailPair label="생성 시각" value={formatDateTime(notification.createdAt)} />
+                    <div className="agenda-content">
+                      <span>안건 내용</span>
+                      <p>{notification.agendaContent}</p>
+                    </div>
+                    {notification.voteStats ? <VoteStats stats={notification.voteStats} /> : null}
                     {notification.saleRequest ? (
                       <>
                         <DetailPair label="매각 주식 수" value={`${notification.saleRequest.sellSharesCount.toLocaleString("ko-KR")}주`} />
@@ -438,6 +454,19 @@ function NotificationSection({
         </div>
       )}
     </section>
+  );
+}
+
+function VoteStats({ stats }: { stats: NonNullable<UserNotification["voteStats"]> }) {
+  const total = stats.approveCount + stats.rejectCount + stats.abstainCount;
+  const percent = (count: number) => (total > 0 ? `${((count / total) * 100).toFixed(1)}%` : "0.0%");
+
+  return (
+    <div className="vote-stats">
+      <DetailPair label="찬성" value={`${stats.approveCount.toLocaleString("ko-KR")}명 · ${percent(stats.approveCount)}`} />
+      <DetailPair label="반대" value={`${stats.rejectCount.toLocaleString("ko-KR")}명 · ${percent(stats.rejectCount)}`} />
+      <DetailPair label="기권/미표명" value={`${stats.abstainCount.toLocaleString("ko-KR")}명 · ${percent(stats.abstainCount)}`} />
+    </div>
   );
 }
 
@@ -533,10 +562,15 @@ function StockHoldingRow({
       onRequestConsent({
         id: createId("notification"),
         type: "SHARE_SALE_REQUEST",
+        categoryLabel: "지분 매각",
         title: `${corporation?.name ?? holding.corporationId} 주식 매각 요청`,
         body: `${buyerName}에게 ${expectedShares.toLocaleString("ko-KR")}주를 1주당 ${formatKrw(Number(pricePerShare))}에 매각하는 동의 요청을 보냈습니다.`,
         status: "PENDING",
         createdAt: new Date().toISOString(),
+        requestedAt: new Date().toISOString(),
+        responseDueAt: addDaysIso(7),
+        submitter: "플레이어",
+        agendaContent: `${corporation?.name ?? holding.corporationId} 비상장 주식 ${expectedShares.toLocaleString("ko-KR")}주를 ${buyerName}에게 매각하는 안건입니다. 상대방이 알림에서 승인하면 거래가 체결됩니다.`,
         saleRequest
       });
       setMessage("비상장 주식 매각 동의 요청을 알림에 등록했습니다.");
@@ -683,30 +717,55 @@ function validateShareSale({
 }
 
 function createInitialNotifications(): UserNotification[] {
+  const now = new Date().toISOString();
+
   return [
     {
       id: "notification-board-vote-1",
       type: "BOARD_VOTE",
+      categoryLabel: "투자 안건",
       title: "이사회 안건 찬반 확인",
       body: "블루하버 홀딩스 신규 물류센터 투자 안건에 대한 의견 확인이 필요합니다.",
       status: "PENDING",
-      createdAt: new Date().toISOString()
+      createdAt: now,
+      requestedAt: now,
+      responseDueAt: addDaysIso(5),
+      submitter: "블루하버 홀딩스 이사회",
+      agendaContent:
+        "수도권 남부 물류센터 임차 및 자동화 설비 도입에 12,000,000원을 투자하는 안건입니다. 월 고정비는 증가하지만 유통/서비스 매출 기반 확장을 기대합니다."
     },
     {
       id: "notification-shareholder-meeting-1",
       type: "SHAREHOLDER_MEETING_VOTE",
+      categoryLabel: "배당 안건",
       title: "주주총회 의결권 행사 요청",
       body: "아라중공업 정기주주총회 배당 정책 안건에 대한 찬반 선택이 필요합니다.",
       status: "PENDING",
-      createdAt: new Date().toISOString()
+      createdAt: now,
+      requestedAt: now,
+      responseDueAt: addDaysIso(10),
+      submitter: "아라중공업 이사회",
+      agendaContent:
+        "당기 순이익 중 일부를 배당으로 지급하고 나머지를 방산 설비 개선에 유보하는 안건입니다. 주주는 의결권 행사 가능일까지 찬반을 표명할 수 있습니다.",
+      voteStats: {
+        approveCount: 184,
+        rejectCount: 37,
+        abstainCount: 12
+      }
     },
     {
       id: "notification-asset-trade-1",
       type: "ASSET_TRADE_REQUEST",
+      categoryLabel: "자산 매입",
       title: "자산 거래 요청",
       body: "마린시티 오피스텔 매입 제안이 도착했습니다.",
       status: "INFO",
-      createdAt: new Date().toISOString()
+      createdAt: now,
+      requestedAt: now,
+      responseDueAt: addDaysIso(3),
+      submitter: "청해부동산",
+      agendaContent:
+        "마린시티 오피스텔을 8,000,000원에 매입하는 제안입니다. 개인 현금 유동성은 낮아지지만 임대수익형 자산 확보가 가능합니다."
     }
   ];
 }
@@ -744,6 +803,12 @@ function formatDateTime(value: string): string {
     dateStyle: "medium",
     timeStyle: "short"
   }).format(new Date(value));
+}
+
+function addDaysIso(days: number): string {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return date.toISOString();
 }
 
 function createId(prefix: string): string {
