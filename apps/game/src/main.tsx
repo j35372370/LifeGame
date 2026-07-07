@@ -32,16 +32,44 @@ interface MenuItem {
   icon: React.ReactNode;
 }
 
+type NotificationType =
+  | "BOARD_VOTE"
+  | "SHAREHOLDER_MEETING_VOTE"
+  | "ASSET_TRADE_REQUEST"
+  | "ASSET_TRADE_RESPONSE"
+  | "SHARE_SALE_REQUEST";
+
+interface UserNotification {
+  id: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  status: "PENDING" | "ACCEPTED" | "REJECTED" | "INFO";
+  createdAt: string;
+  saleRequest?: SellShareRequest;
+}
+
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [state, setState] = useState<GameState>(() => createInitialGameState());
+  const [notifications, setNotifications] = useState<UserNotification[]>(() => createInitialNotifications());
   const [activePage, setActivePage] = useState<PageKey | null>(null);
 
   if (!isLoggedIn) {
     return <LoginScreen onLogin={() => setIsLoggedIn(true)} />;
   }
 
-  return <GameShell state={state} activePage={activePage} onNavigate={setActivePage} onSellShares={setState} />;
+  return (
+    <GameShell
+      state={state}
+      notifications={notifications}
+      activePage={activePage}
+      onNavigate={setActivePage}
+      onSellShares={setState}
+      onCreateNotification={(notification) => setNotifications((current) => [notification, ...current])}
+      onUpdateNotification={setNotifications}
+    />
+  );
 }
 
 function LoginScreen({ onLogin }: { onLogin: () => void }) {
@@ -73,14 +101,20 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
 
 function GameShell({
   state,
+  notifications,
   activePage,
   onNavigate,
-  onSellShares
+  onSellShares,
+  onCreateNotification,
+  onUpdateNotification
 }: {
   state: GameState;
+  notifications: UserNotification[];
   activePage: PageKey | null;
   onNavigate: (page: PageKey | null) => void;
   onSellShares: (updater: (state: GameState) => GameState) => void;
+  onCreateNotification: (notification: UserNotification) => void;
+  onUpdateNotification: (updater: (notifications: UserNotification[]) => UserNotification[]) => void;
 }) {
   const player = state.persons[0];
   const account = state.personalAccounts.find((item) => item.id === player.accountId);
@@ -109,7 +143,15 @@ function GameShell({
       </section>
 
       {currentItem ? (
-        <DetailPage item={currentItem} state={state} onBack={() => onNavigate(null)} onSellShares={onSellShares} />
+        <DetailPage
+          item={currentItem}
+          state={state}
+          notifications={notifications}
+          onBack={() => onNavigate(null)}
+          onSellShares={onSellShares}
+          onCreateNotification={onCreateNotification}
+          onUpdateNotification={onUpdateNotification}
+        />
       ) : (
         <Dashboard menuItems={menuItems} hasOperatingCompany={hasOperatingCompany} onNavigate={onNavigate} />
       )}
@@ -142,13 +184,19 @@ function Dashboard({
 function DetailPage({
   item,
   state,
+  notifications,
   onBack,
-  onSellShares
+  onSellShares,
+  onCreateNotification,
+  onUpdateNotification
 }: {
   item: MenuItem;
   state: GameState;
+  notifications: UserNotification[];
   onBack: () => void;
   onSellShares: (updater: (state: GameState) => GameState) => void;
+  onCreateNotification: (notification: UserNotification) => void;
+  onUpdateNotification: (updater: (notifications: UserNotification[]) => UserNotification[]) => void;
 }) {
   return (
     <section className="detail-layout">
@@ -163,12 +211,21 @@ function DetailPage({
         </div>
       </div>
 
-      <div className="detail-panel">{renderDetailContent(item.key, state, onSellShares)}</div>
+      <div className="detail-panel">
+        {renderDetailContent(item.key, state, notifications, onSellShares, onCreateNotification, onUpdateNotification)}
+      </div>
     </section>
   );
 }
 
-function renderDetailContent(page: PageKey, state: GameState, onSellShares: (updater: (state: GameState) => GameState) => void) {
+function renderDetailContent(
+  page: PageKey,
+  state: GameState,
+  notifications: UserNotification[],
+  onSellShares: (updater: (state: GameState) => GameState) => void,
+  onCreateNotification: (notification: UserNotification) => void,
+  onUpdateNotification: (updater: (notifications: UserNotification[]) => UserNotification[]) => void
+) {
   switch (page) {
     case "company":
       return <CompanyDetail state={state} />;
@@ -177,7 +234,15 @@ function renderDetailContent(page: PageKey, state: GameState, onSellShares: (upd
     case "news":
       return <ListDetail items={state.newsArticles.map((item) => item.headline)} empty="표시할 뉴스가 없습니다." />;
     case "personal-assets":
-      return <PersonalStatusDetail state={state} onSellShares={onSellShares} />;
+      return (
+        <PersonalStatusDetail
+          state={state}
+          notifications={notifications}
+          onSellShares={onSellShares}
+          onCreateNotification={onCreateNotification}
+          onUpdateNotification={onUpdateNotification}
+        />
+      );
     case "asset-trading":
       return <EmptyDetail title="자산 거래" body="개인 자산 매입, 매각, 가치 평가 기능을 연결할 예정입니다." />;
     case "event-log":
@@ -210,10 +275,16 @@ function CompanyDetail({ state }: { state: GameState }) {
 
 function PersonalStatusDetail({
   state,
-  onSellShares
+  notifications,
+  onSellShares,
+  onCreateNotification,
+  onUpdateNotification
 }: {
   state: GameState;
+  notifications: UserNotification[];
   onSellShares: (updater: (state: GameState) => GameState) => void;
+  onCreateNotification: (notification: UserNotification) => void;
+  onUpdateNotification: (updater: (notifications: UserNotification[]) => UserNotification[]) => void;
 }) {
   const player = state.persons[0];
   const account = state.personalAccounts.find((item) => item.id === player.accountId);
@@ -239,6 +310,23 @@ function PersonalStatusDetail({
       </section>
 
       <section className="asset-section-grid">
+        <NotificationSection
+          notifications={notifications}
+          onAccept={(notification) => {
+            if (notification.saleRequest) {
+              onSellShares((current) => sellShares(current, notification.saleRequest!));
+            }
+            onUpdateNotification((current) =>
+              current.map((item) => (item.id === notification.id ? { ...item, status: "ACCEPTED" } : item))
+            );
+          }}
+          onReject={(notification) =>
+            onUpdateNotification((current) =>
+              current.map((item) => (item.id === notification.id ? { ...item, status: "REJECTED" } : item))
+            )
+          }
+        />
+
         <AssetSection title="보유한 부동산 목록" empty="보유한 부동산이 없습니다.">
           {realEstateAssets.map((asset) => (
             <AssetRow key={asset.id} name={asset.name} meta={asset.assetTypeId} value={formatKrw(asset.currentValue)} />
@@ -271,18 +359,57 @@ function PersonalStatusDetail({
           })}
         </AssetSection>
 
-        <StockHoldingSection state={state} onSellShares={onSellShares} />
+        <StockHoldingSection state={state} onSellShares={onSellShares} onCreateNotification={onCreateNotification} />
       </section>
     </div>
   );
 }
 
+function NotificationSection({
+  notifications,
+  onAccept,
+  onReject
+}: {
+  notifications: UserNotification[];
+  onAccept: (notification: UserNotification) => void;
+  onReject: (notification: UserNotification) => void;
+}) {
+  return (
+    <section className="asset-section notification-section">
+      <h3>알림</h3>
+      {notifications.length === 0 ? (
+        <p className="empty-state">확인할 알림이 없습니다.</p>
+      ) : (
+        <div className="notification-list">
+          {notifications.map((notification) => (
+            <div key={notification.id} className="notification-row">
+              <div>
+                <strong>{notification.title}</strong>
+                <span>{notification.body}</span>
+                <em>{notificationStatusLabel(notification.status)}</em>
+              </div>
+              {notification.status === "PENDING" ? (
+                <div className="notification-actions">
+                  <button onClick={() => onAccept(notification)}>승인</button>
+                  <button className="secondary-button" onClick={() => onReject(notification)}>거절</button>
+                </div>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function StockHoldingSection({
   state,
-  onSellShares
+  onSellShares,
+  onCreateNotification
 }: {
   state: GameState;
   onSellShares: (updater: (state: GameState) => GameState) => void;
+  onCreateNotification: (notification: UserNotification) => void;
 }) {
   const player = state.persons[0];
   const holdings = state.shareholdings.filter((holding) => holding.shareholderPersonId === player.id && holding.shares > 0);
@@ -300,6 +427,7 @@ function StockHoldingSection({
               holding={holding}
               state={state}
               onSell={(request) => onSellShares((current) => sellShares(current, request))}
+              onRequestConsent={onCreateNotification}
             />
           ))}
         </div>
@@ -311,17 +439,18 @@ function StockHoldingSection({
 function StockHoldingRow({
   holding,
   state,
-  onSell
+  onSell,
+  onRequestConsent
 }: {
   holding: IShareholding;
   state: GameState;
   onSell: (request: SellShareRequest) => void;
+  onRequestConsent: (notification: UserNotification) => void;
 }) {
   const [sellBasis, setSellBasis] = useState<"shares" | "ratio">("shares");
   const [sellAmount, setSellAmount] = useState("1");
   const [pricePerShare, setPricePerShare] = useState(String(Math.floor(holding.acquiredPricePerShare)));
   const [buyerName, setBuyerName] = useState("");
-  const [hasBuyerConsent, setHasBuyerConsent] = useState(false);
   const [message, setMessage] = useState("");
   const corporation = state.corporations.find((item) => item.id === holding.corporationId);
   const totalShares = corporation?.totalShares ?? holding.shares;
@@ -338,8 +467,7 @@ function StockHoldingRow({
       sellSharesCount: expectedShares,
       pricePerShare: Number(pricePerShare),
       marketPrice,
-      buyerName,
-      hasBuyerConsent
+      buyerName
     });
 
     if (!result.ok) {
@@ -347,11 +475,27 @@ function StockHoldingRow({
       return;
     }
 
-    onSell({
+    const saleRequest = {
       shareholdingId: holding.id,
       sellSharesCount: expectedShares,
       pricePerShare: Number(pricePerShare)
-    });
+    };
+
+    if (!corporation?.isPublic) {
+      onRequestConsent({
+        id: createId("notification"),
+        type: "SHARE_SALE_REQUEST",
+        title: `${corporation?.name ?? holding.corporationId} 주식 매각 요청`,
+        body: `${buyerName}에게 ${expectedShares.toLocaleString("ko-KR")}주를 1주당 ${formatKrw(Number(pricePerShare))}에 매각하는 동의 요청을 보냈습니다.`,
+        status: "PENDING",
+        createdAt: new Date().toISOString(),
+        saleRequest
+      });
+      setMessage("비상장 주식 매각 동의 요청을 알림에 등록했습니다.");
+      return;
+    }
+
+    onSell(saleRequest);
     setMessage(`${expectedShares.toLocaleString("ko-KR")}주를 ${formatKrw(expectedProceeds)}에 매각했습니다.`);
   }
 
@@ -395,10 +539,7 @@ function StockHoldingRow({
               placeholder="매각 대상"
               aria-label="매각 대상"
             />
-            <label className="consent-check">
-              <input checked={hasBuyerConsent} type="checkbox" onChange={(event) => setHasBuyerConsent(event.target.checked)} />
-              <span>상대방 동의</span>
-            </label>
+            <p className="sale-rule">상대방은 개인 현황 알림에서 승인하거나 거절합니다.</p>
           </div>
         ) : (
           <p className="sale-rule">상장회사는 시장가 {formatKrw(marketPrice)}보다 낮은 가격으로 일부 수량만 매각할 수 있습니다.</p>
@@ -459,8 +600,7 @@ function validateShareSale({
   sellSharesCount,
   pricePerShare,
   marketPrice,
-  buyerName,
-  hasBuyerConsent
+  buyerName
 }: {
   holding: IShareholding;
   corporationIsPublic: boolean;
@@ -468,7 +608,6 @@ function validateShareSale({
   pricePerShare: number;
   marketPrice: number;
   buyerName: string;
-  hasBuyerConsent: boolean;
 }): { ok: boolean; message: string } {
   if (!Number.isFinite(sellSharesCount) || sellSharesCount <= 0) {
     return { ok: false, message: "매각할 주식 수를 1주 이상 입력해야 합니다." };
@@ -490,12 +629,55 @@ function validateShareSale({
     if (!buyerName.trim()) {
       return { ok: false, message: "비상장회사 주식은 매각 대상을 입력해야 합니다." };
     }
-    if (!hasBuyerConsent) {
-      return { ok: false, message: "비상장회사 주식은 매각 대상의 동의가 필요합니다." };
-    }
   }
 
   return { ok: true, message: "매각할 수 있습니다." };
+}
+
+function createInitialNotifications(): UserNotification[] {
+  return [
+    {
+      id: "notification-board-vote-1",
+      type: "BOARD_VOTE",
+      title: "이사회 안건 찬반 확인",
+      body: "블루하버 홀딩스 신규 물류센터 투자 안건에 대한 의견 확인이 필요합니다.",
+      status: "PENDING",
+      createdAt: new Date().toISOString()
+    },
+    {
+      id: "notification-shareholder-meeting-1",
+      type: "SHAREHOLDER_MEETING_VOTE",
+      title: "주주총회 의결권 행사 요청",
+      body: "아라중공업 정기주주총회 배당 정책 안건에 대한 찬반 선택이 필요합니다.",
+      status: "PENDING",
+      createdAt: new Date().toISOString()
+    },
+    {
+      id: "notification-asset-trade-1",
+      type: "ASSET_TRADE_REQUEST",
+      title: "자산 거래 요청",
+      body: "마린시티 오피스텔 매입 제안이 도착했습니다.",
+      status: "INFO",
+      createdAt: new Date().toISOString()
+    }
+  ];
+}
+
+function notificationStatusLabel(status: UserNotification["status"]): string {
+  switch (status) {
+    case "PENDING":
+      return "대기 중";
+    case "ACCEPTED":
+      return "승인됨";
+    case "REJECTED":
+      return "거절됨";
+    case "INFO":
+      return "확인";
+  }
+}
+
+function createId(prefix: string): string {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function SummaryCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
