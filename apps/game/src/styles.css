@@ -90,6 +90,34 @@ h3 {
   margin: 24px 0;
 }
 
+.account-button {
+  background: #f7faf8;
+  border: 1px solid #d9e1db;
+  border-radius: 8px;
+  color: #1e2724;
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  text-align: left;
+}
+
+.account-button strong,
+.account-button span,
+.account-button em {
+  display: block;
+}
+
+.account-button span,
+.account-button em {
+  color: #60746b;
+  font-size: 12px;
+}
+
+.account-button em {
+  font-style: normal;
+  font-weight: 800;
+}
+
 label {
   display: grid;
   gap: 6px;

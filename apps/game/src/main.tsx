@@ -41,9 +41,19 @@ type NotificationType =
 
 type VoteChoice = "APPROVE" | "REJECT" | "ABSTAIN";
 type VoteBasis = "MEMBER" | "SHARE";
+type TestAccountId = "player" | "cheonghae";
+
+interface TestAccount {
+  id: TestAccountId;
+  name: string;
+  email: string;
+  role: string;
+}
 
 interface UserNotification {
   id: string;
+  recipientAccountId: TestAccountId;
+  submitterAccountId?: TestAccountId;
   type: NotificationType;
   categoryLabel: string;
   title: string;
@@ -66,30 +76,41 @@ interface UserNotification {
   assetTradeRequest?: AssetTradeRequest;
 }
 
+const TEST_ACCOUNTS: TestAccount[] = [
+  { id: "player", name: "플레이어", email: "player@lifegame.local", role: "개인 투자자" },
+  { id: "cheonghae", name: "청해부동산", email: "cheonghae@lifegame.local", role: "자산 거래 상대방" }
+];
+
 function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [activeAccount, setActiveAccount] = useState<TestAccount | null>(null);
   const [state, setState] = useState<GameState>(() => createInitialGameState());
   const [notifications, setNotifications] = useState<UserNotification[]>(() => createInitialNotifications(state));
   const [activePage, setActivePage] = useState<PageKey | null>(null);
+  const visibleNotifications = notifications.filter((notification) => notification.recipientAccountId === activeAccount?.id);
 
-  if (!isLoggedIn) {
-    return <LoginScreen onLogin={() => setIsLoggedIn(true)} />;
+  if (!activeAccount) {
+    return <LoginScreen accounts={TEST_ACCOUNTS} onLogin={setActiveAccount} />;
   }
 
   return (
     <GameShell
+      activeAccount={activeAccount}
       state={state}
-      notifications={notifications}
+      notifications={visibleNotifications}
       activePage={activePage}
       onNavigate={setActivePage}
       onSellShares={setState}
       onCreateNotification={(notification) => setNotifications((current) => [notification, ...current])}
       onUpdateNotification={setNotifications}
+      onLogout={() => {
+        setActivePage(null);
+        setActiveAccount(null);
+      }}
     />
   );
 }
 
-function LoginScreen({ onLogin }: { onLogin: () => void }) {
+function LoginScreen({ accounts, onLogin }: { accounts: TestAccount[]; onLogin: (account: TestAccount) => void }) {
   return (
     <main className="login-screen">
       <section className="login-panel">
@@ -98,33 +119,31 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
         <p className="login-copy">아라공화국 경제 활동 계정으로 접속합니다.</p>
 
         <div className="login-fields">
-          <label>
-            <span>계정</span>
-            <input value="player@lifegame.local" readOnly />
-          </label>
-          <label>
-            <span>비밀번호</span>
-            <input value="********" type="password" readOnly />
-          </label>
+          {accounts.map((account) => (
+            <button key={account.id} className="account-button" onClick={() => onLogin(account)}>
+              <strong>{account.name}</strong>
+              <span>{account.email}</span>
+              <em>{account.role}</em>
+            </button>
+          ))}
         </div>
-
-        <button className="primary-button" onClick={onLogin}>
-          로그인
-        </button>
       </section>
     </main>
   );
 }
 
 function GameShell({
+  activeAccount,
   state,
   notifications,
   activePage,
   onNavigate,
   onSellShares,
   onCreateNotification,
-  onUpdateNotification
+  onUpdateNotification,
+  onLogout
 }: {
+  activeAccount: TestAccount;
   state: GameState;
   notifications: UserNotification[];
   activePage: PageKey | null;
@@ -132,6 +151,7 @@ function GameShell({
   onSellShares: (updater: (state: GameState) => GameState) => void;
   onCreateNotification: (notification: UserNotification) => void;
   onUpdateNotification: (updater: (notifications: UserNotification[]) => UserNotification[]) => void;
+  onLogout: () => void;
 }) {
   const player = state.persons[0];
   const account = state.personalAccounts.find((item) => item.id === player.accountId);
@@ -153,9 +173,11 @@ function GameShell({
           <h1>대시보드</h1>
         </div>
         <div className="capital-strip">
+          <Metric label="접속 계정" value={activeAccount.name} />
           <Metric label="현금" value={formatKrw(account?.cashBalance ?? 0)} />
           <Metric label="순자산" value={formatKrw(netWorth)} />
           <Metric label="운영 회사" value={`${operatingCompanies.length}개`} />
+          <button className="secondary-button" onClick={onLogout}>계정 변경</button>
         </div>
       </section>
 
@@ -349,11 +371,14 @@ function PersonalStatusDetail({
             )
           }
           onCounterAssetTrade={(notification, counterPrice, message) =>
-            onUpdateNotification((current) =>
-              current.map((item) =>
-                item.id === notification.id ? applyAssetTradeCounter(item, counterPrice, message) : item
-              )
-            )
+            {
+              onUpdateNotification((current) =>
+                current.map((item) =>
+                  item.id === notification.id ? applyAssetTradeCounter(item, counterPrice, message) : item
+                )
+              );
+              onCreateNotification(createAssetTradeCounterNotification(notification, counterPrice, message));
+            }
           }
           onDelete={(notification) =>
             onUpdateNotification((current) => current.filter((item) => item.id !== notification.id))
@@ -672,6 +697,38 @@ function applyAssetTradeCounter(notification: UserNotification, counterPrice: nu
   };
 }
 
+function createAssetTradeCounterNotification(
+  notification: UserNotification,
+  counterPrice: number,
+  message: string
+): UserNotification {
+  const now = new Date().toISOString();
+  const assetName = notification.assetTradeRequest?.assetName ?? "자산";
+  const counterMessage = message || "대안 금액으로 거래를 다시 제안했습니다.";
+
+  return {
+    id: createId("notification-asset-counter"),
+    recipientAccountId: notification.submitterAccountId ?? "cheonghae",
+    submitterAccountId: notification.recipientAccountId,
+    type: "ASSET_TRADE_RESPONSE",
+    categoryLabel: "자산 거래 대안",
+    title: `${assetName} 거래 대안 제시`,
+    body: `${assetName} 거래 요청에 ${formatKrw(counterPrice)} 대안이 도착했습니다.`,
+    status: "INFO",
+    createdAt: now,
+    requestedAt: now,
+    responseDueAt: addDaysIso(3),
+    submitter: TEST_ACCOUNTS.find((account) => account.id === notification.recipientAccountId)?.name ?? "상대방",
+    agendaContent: counterMessage,
+    assetTradeRequest: {
+      assetName,
+      proposedPrice: notification.assetTradeRequest?.proposedPrice ?? 0,
+      counterPrice,
+      counterMessage
+    }
+  };
+}
+
 function getUserVoteWeight(notification: UserNotification, state: GameState): number {
   if (notification.voteBasis !== "SHARE") {
     return 1;
@@ -797,6 +854,8 @@ function StockHoldingRow({
     if (!corporation?.isPublic) {
       onRequestConsent({
         id: createId("notification"),
+        recipientAccountId: "player",
+        submitterAccountId: "player",
         type: "SHARE_SALE_REQUEST",
         categoryLabel: "지분 매각",
         title: `${corporation?.name ?? holding.corporationId} 주식 매각 요청`,
@@ -971,6 +1030,7 @@ function createInitialNotifications(state: GameState): UserNotification[] {
   return [
     {
       id: "notification-board-vote-1",
+      recipientAccountId: "player",
       type: "BOARD_VOTE",
       categoryLabel: "투자 안건",
       title: "이사회 안건 찬반 확인",
@@ -991,6 +1051,7 @@ function createInitialNotifications(state: GameState): UserNotification[] {
     },
     {
       id: "notification-shareholder-meeting-1",
+      recipientAccountId: "player",
       type: "SHAREHOLDER_MEETING_VOTE",
       categoryLabel: "배당 안건",
       title: "주주총회 의결권 행사 요청",
@@ -1012,6 +1073,8 @@ function createInitialNotifications(state: GameState): UserNotification[] {
     },
     {
       id: "notification-asset-trade-1",
+      recipientAccountId: "player",
+      submitterAccountId: "cheonghae",
       type: "ASSET_TRADE_REQUEST",
       categoryLabel: "자산 매입",
       title: "자산 거래 요청",
