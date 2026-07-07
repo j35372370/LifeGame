@@ -574,16 +574,13 @@ textarea {
 }
 
 .amount-input-row {
-  align-items: center;
   display: grid;
-  gap: 8px;
-  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px;
 }
 
 .amount-input-row strong {
   color: #173f35;
   font-size: 13px;
-  white-space: nowrap;
 }
 
 .notification-actions {
