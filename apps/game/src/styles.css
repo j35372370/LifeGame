@@ -351,6 +351,24 @@ input {
   margin-bottom: 12px;
 }
 
+.section-heading {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.section-heading h3 {
+  margin-bottom: 0;
+}
+
+.section-heading span {
+  color: #60746b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .asset-list {
   display: grid;
   gap: 8px;
@@ -407,13 +425,23 @@ input {
 }
 
 .notification-row {
-  align-items: center;
   border: 1px solid #e1e8e3;
   border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+
+.notification-row.expanded {
+  background: #fbfdfb;
+  border-color: #b8c9c0;
+}
+
+.notification-summary {
+  align-items: start;
   display: flex;
   gap: 12px;
   justify-content: space-between;
-  padding: 12px;
 }
 
 .notification-row strong,
@@ -439,9 +467,50 @@ input {
   font-weight: 800;
 }
 
+.notification-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: end;
+  min-width: 160px;
+}
+
+.notification-meta em {
+  background: #e7eee9;
+  border-radius: 999px;
+  padding: 4px 8px;
+}
+
+.notification-detail {
+  background: #ffffff;
+  border: 1px solid #e1e8e3;
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 12px;
+}
+
+.detail-pair {
+  display: grid;
+  gap: 3px;
+}
+
+.detail-pair span {
+  color: #60746b;
+  font-size: 12px;
+}
+
+.detail-pair strong {
+  color: #1e2724;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
 .notification-actions {
   display: flex;
   gap: 8px;
+  justify-content: end;
 }
 
 .notification-actions button,
@@ -584,7 +653,8 @@ input {
   .asset-section-grid,
   .stock-row,
   .sale-control-row,
-  .private-sale-controls {
+  .private-sale-controls,
+  .notification-detail {
     grid-template-columns: 1fr;
   }
 
@@ -592,10 +662,14 @@ input {
     text-align: left;
   }
 
-  .notification-row,
+  .notification-summary,
   .notification-actions {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .notification-meta {
+    justify-content: start;
   }
 
   .menu-grid.no-company .menu-tile:first-child {

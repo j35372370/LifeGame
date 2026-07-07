@@ -374,31 +374,79 @@ function NotificationSection({
   onAccept: (notification: UserNotification) => void;
   onReject: (notification: UserNotification) => void;
 }) {
+  const [expandedId, setExpandedId] = useState<string | null>(notifications[0]?.id ?? null);
+
   return (
     <section className="asset-section notification-section">
-      <h3>알림</h3>
+      <div className="section-heading">
+        <h3>알림</h3>
+        <span>{notifications.filter((item) => item.status === "PENDING").length}건 대기</span>
+      </div>
       {notifications.length === 0 ? (
         <p className="empty-state">확인할 알림이 없습니다.</p>
       ) : (
         <div className="notification-list">
-          {notifications.map((notification) => (
-            <div key={notification.id} className="notification-row">
-              <div>
-                <strong>{notification.title}</strong>
-                <span>{notification.body}</span>
-                <em>{notificationStatusLabel(notification.status)}</em>
-              </div>
-              {notification.status === "PENDING" ? (
-                <div className="notification-actions">
-                  <button onClick={() => onAccept(notification)}>승인</button>
-                  <button className="secondary-button" onClick={() => onReject(notification)}>거절</button>
+          {notifications.map((notification) => {
+            const isExpanded = expandedId === notification.id;
+
+            return (
+              <article key={notification.id} className={isExpanded ? "notification-row expanded" : "notification-row"}>
+                <div className="notification-summary">
+                  <div>
+                    <strong>{notification.title}</strong>
+                    <span>{notification.body}</span>
+                  </div>
+                  <div className="notification-meta">
+                    <em>{notificationTypeLabel(notification.type)}</em>
+                    <em>{notificationStatusLabel(notification.status)}</em>
+                  </div>
                 </div>
-              ) : null}
-            </div>
-          ))}
+
+                {isExpanded ? (
+                  <div className="notification-detail">
+                    <DetailPair label="알림 ID" value={notification.id} />
+                    <DetailPair label="알림 종류" value={notificationTypeLabel(notification.type)} />
+                    <DetailPair label="상태" value={notificationStatusLabel(notification.status)} />
+                    <DetailPair label="생성 시각" value={formatDateTime(notification.createdAt)} />
+                    {notification.saleRequest ? (
+                      <>
+                        <DetailPair label="매각 주식 수" value={`${notification.saleRequest.sellSharesCount.toLocaleString("ko-KR")}주`} />
+                        <DetailPair label="1주당 매각가" value={formatKrw(notification.saleRequest.pricePerShare)} />
+                        <DetailPair
+                          label="총 매각 예정가"
+                          value={formatKrw(notification.saleRequest.sellSharesCount * notification.saleRequest.pricePerShare)}
+                        />
+                      </>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                <div className="notification-actions">
+                  <button className="secondary-button" onClick={() => setExpandedId(isExpanded ? null : notification.id)}>
+                    {isExpanded ? "접기" : "자세히"}
+                  </button>
+                  {notification.status === "PENDING" ? (
+                    <>
+                      <button onClick={() => onAccept(notification)}>승인</button>
+                      <button className="secondary-button" onClick={() => onReject(notification)}>거절</button>
+                    </>
+                  ) : null}
+                </div>
+              </article>
+            );
+          })}
         </div>
       )}
     </section>
+  );
+}
+
+function DetailPair({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="detail-pair">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
   );
 }
 
@@ -674,6 +722,28 @@ function notificationStatusLabel(status: UserNotification["status"]): string {
     case "INFO":
       return "확인";
   }
+}
+
+function notificationTypeLabel(type: NotificationType): string {
+  switch (type) {
+    case "BOARD_VOTE":
+      return "이사회 찬반";
+    case "SHAREHOLDER_MEETING_VOTE":
+      return "주주총회 찬반";
+    case "ASSET_TRADE_REQUEST":
+      return "자산 거래 요청";
+    case "ASSET_TRADE_RESPONSE":
+      return "자산 거래 결과";
+    case "SHARE_SALE_REQUEST":
+      return "주식 매각 동의";
+  }
+}
+
+function formatDateTime(value: string): string {
+  return new Intl.DateTimeFormat("ko-KR", {
+    dateStyle: "medium",
+    timeStyle: "short"
+  }).format(new Date(value));
 }
 
 function createId(prefix: string): string {
