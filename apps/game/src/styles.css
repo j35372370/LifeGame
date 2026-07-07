@@ -563,6 +563,10 @@ input {
   color: #173f35;
 }
 
+.notification-actions .selected-button {
+  box-shadow: 0 0 0 2px #d6a843 inset;
+}
+
 .notification-actions .danger-button {
   background: #8f2f2f;
   color: #ffffff;

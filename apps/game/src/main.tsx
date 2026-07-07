@@ -39,6 +39,8 @@ type NotificationType =
   | "ASSET_TRADE_RESPONSE"
   | "SHARE_SALE_REQUEST";
 
+type VoteChoice = "APPROVE" | "REJECT" | "ABSTAIN";
+
 interface UserNotification {
   id: string;
   type: NotificationType;
@@ -56,6 +58,7 @@ interface UserNotification {
     rejectCount: number;
     abstainCount: number;
   };
+  userVote?: VoteChoice;
   saleRequest?: SellShareRequest;
 }
 
@@ -335,6 +338,11 @@ function PersonalStatusDetail({
               current.map((item) => (item.id === notification.id ? { ...item, status: "REJECTED" } : item))
             )
           }
+          onVote={(notification, vote) =>
+            onUpdateNotification((current) =>
+              current.map((item) => (item.id === notification.id ? applyVoteChoice(item, vote) : item))
+            )
+          }
           onDelete={(notification) =>
             onUpdateNotification((current) => current.filter((item) => item.id !== notification.id))
           }
@@ -382,11 +390,13 @@ function NotificationSection({
   notifications,
   onAccept,
   onReject,
+  onVote,
   onDelete
 }: {
   notifications: UserNotification[];
   onAccept: (notification: UserNotification) => void;
   onReject: (notification: UserNotification) => void;
+  onVote: (notification: UserNotification, vote: VoteChoice) => void;
   onDelete: (notification: UserNotification) => void;
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(notifications[0]?.id ?? null);
@@ -405,6 +415,7 @@ function NotificationSection({
             const isExpanded = expandedId === notification.id;
             const canRespond = canRespondToNotification(notification);
             const actionLabels = notificationActionLabels(notification.type);
+            const isVoting = isVotingNotification(notification);
 
             return (
               <article key={notification.id} className={isExpanded ? "notification-row expanded" : "notification-row"}>
@@ -426,6 +437,7 @@ function NotificationSection({
                     <DetailPair label="의견 확인 요청일" value={formatDateTime(notification.requestedAt)} />
                     <DetailPair label="의견 표명 가능일" value={formatDateTime(notification.responseDueAt)} />
                     <DetailPair label="상태" value={notificationStatusLabel(notification.status)} />
+                    {isVoting ? <DetailPair label="내 선택" value={voteChoiceLabel(notification.userVote)} /> : null}
                     <div className="agenda-content">
                       <span>안건 내용</span>
                       <p>{notification.agendaContent}</p>
@@ -448,7 +460,29 @@ function NotificationSection({
                   <button className="secondary-button" onClick={() => setExpandedId(isExpanded ? null : notification.id)}>
                     {isExpanded ? "접기" : "자세히"}
                   </button>
-                  {canRespond ? (
+                  {canRespond && isVoting ? (
+                    <>
+                      <button
+                        className={notification.userVote === "APPROVE" ? "selected-button" : undefined}
+                        onClick={() => onVote(notification, "APPROVE")}
+                      >
+                        찬성
+                      </button>
+                      <button
+                        className={notification.userVote === "REJECT" ? "secondary-button selected-button" : "secondary-button"}
+                        onClick={() => onVote(notification, "REJECT")}
+                      >
+                        반대
+                      </button>
+                      <button
+                        className={notification.userVote === "ABSTAIN" ? "secondary-button selected-button" : "secondary-button"}
+                        onClick={() => onVote(notification, "ABSTAIN")}
+                      >
+                        기권
+                      </button>
+                    </>
+                  ) : null}
+                  {canRespond && !isVoting ? (
                     <>
                       <button onClick={() => onAccept(notification)}>{actionLabels.accept}</button>
                       <button className="secondary-button" onClick={() => onReject(notification)}>{actionLabels.reject}</button>
@@ -470,6 +504,10 @@ function NotificationSection({
   );
 }
 
+function isVotingNotification(notification: UserNotification): boolean {
+  return notification.type === "BOARD_VOTE" || notification.type === "SHAREHOLDER_MEETING_VOTE";
+}
+
 function canRespondToNotification(notification: UserNotification): boolean {
   return notification.status === "PENDING" && Date.now() <= new Date(notification.responseDueAt).getTime();
 }
@@ -480,6 +518,49 @@ function notificationActionLabels(type: NotificationType): { accept: string; rej
   }
 
   return { accept: "승인", reject: "거절" };
+}
+
+function voteChoiceLabel(vote?: VoteChoice): string {
+  switch (vote) {
+    case "APPROVE":
+      return "찬성";
+    case "REJECT":
+      return "반대";
+    case "ABSTAIN":
+      return "기권";
+    default:
+      return "미표명";
+  }
+}
+
+function applyVoteChoice(notification: UserNotification, nextVote: VoteChoice): UserNotification {
+  if (!notification.voteStats || !isVotingNotification(notification)) {
+    return notification;
+  }
+
+  const voteStats = { ...notification.voteStats };
+  const adjust = (vote: VoteChoice, amount: number) => {
+    if (vote === "APPROVE") {
+      voteStats.approveCount = Math.max(0, voteStats.approveCount + amount);
+    }
+    if (vote === "REJECT") {
+      voteStats.rejectCount = Math.max(0, voteStats.rejectCount + amount);
+    }
+    if (vote === "ABSTAIN") {
+      voteStats.abstainCount = Math.max(0, voteStats.abstainCount + amount);
+    }
+  };
+
+  if (notification.userVote) {
+    adjust(notification.userVote, -1);
+  }
+  adjust(nextVote, 1);
+
+  return {
+    ...notification,
+    userVote: nextVote,
+    voteStats
+  };
 }
 
 function VoteStats({ stats }: { stats: NonNullable<UserNotification["voteStats"]> }) {
