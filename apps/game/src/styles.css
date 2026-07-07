@@ -338,6 +338,10 @@ input {
   padding: 16px;
 }
 
+.stock-section {
+  grid-column: 1 / -1;
+}
+
 .asset-section h3 {
   margin-bottom: 12px;
 }
@@ -391,6 +395,58 @@ input {
   white-space: nowrap;
 }
 
+.stock-list {
+  display: grid;
+  gap: 10px;
+}
+
+.stock-row {
+  align-items: center;
+  border: 1px solid #e1e8e3;
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1.4fr) minmax(160px, 0.6fr) 84px;
+  padding: 12px;
+}
+
+.stock-main strong,
+.stock-main span,
+.stock-value span,
+.stock-value strong {
+  display: block;
+}
+
+.stock-main strong {
+  font-size: 15px;
+}
+
+.stock-main span,
+.stock-value span {
+  color: #60746b;
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+.stock-value {
+  text-align: right;
+}
+
+.stock-value strong {
+  color: #173f35;
+  font-size: 15px;
+  margin-top: 3px;
+}
+
+.sell-button {
+  background: #173f35;
+  border: 0;
+  border-radius: 6px;
+  color: #ffffff;
+  min-height: 38px;
+  padding: 0 12px;
+}
+
 @media (max-width: 860px) {
   .topbar {
     align-items: stretch;
@@ -401,8 +457,13 @@ input {
   .menu-grid,
   .menu-grid.no-company,
   .finance-summary-grid,
-  .asset-section-grid {
+  .asset-section-grid,
+  .stock-row {
     grid-template-columns: 1fr;
+  }
+
+  .stock-value {
+    text-align: left;
   }
 
   .menu-grid.no-company .menu-tile:first-child {

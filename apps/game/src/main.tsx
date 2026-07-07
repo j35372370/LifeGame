@@ -14,6 +14,7 @@ import {
   WalletCards
 } from "lucide-react";
 import { createInitialGameState, type GameState } from "@life-game/game-engine";
+import type { IShareholding } from "@life-game/schemas";
 import "./styles.css";
 
 type PageKey =
@@ -33,14 +34,14 @@ interface MenuItem {
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [state] = useState<GameState>(() => createInitialGameState());
+  const [state, setState] = useState<GameState>(() => createInitialGameState());
   const [activePage, setActivePage] = useState<PageKey | null>(null);
 
   if (!isLoggedIn) {
     return <LoginScreen onLogin={() => setIsLoggedIn(true)} />;
   }
 
-  return <GameShell state={state} activePage={activePage} onNavigate={setActivePage} />;
+  return <GameShell state={state} activePage={activePage} onNavigate={setActivePage} onSellShares={setState} />;
 }
 
 function LoginScreen({ onLogin }: { onLogin: () => void }) {
@@ -73,11 +74,13 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
 function GameShell({
   state,
   activePage,
-  onNavigate
+  onNavigate,
+  onSellShares
 }: {
   state: GameState;
   activePage: PageKey | null;
   onNavigate: (page: PageKey | null) => void;
+  onSellShares: (updater: (state: GameState) => GameState) => void;
 }) {
   const player = state.persons[0];
   const account = state.personalAccounts.find((item) => item.id === player.accountId);
@@ -106,7 +109,7 @@ function GameShell({
       </section>
 
       {currentItem ? (
-        <DetailPage item={currentItem} state={state} onBack={() => onNavigate(null)} />
+        <DetailPage item={currentItem} state={state} onBack={() => onNavigate(null)} onSellShares={onSellShares} />
       ) : (
         <Dashboard menuItems={menuItems} hasOperatingCompany={hasOperatingCompany} onNavigate={onNavigate} />
       )}
@@ -136,7 +139,17 @@ function Dashboard({
   );
 }
 
-function DetailPage({ item, state, onBack }: { item: MenuItem; state: GameState; onBack: () => void }) {
+function DetailPage({
+  item,
+  state,
+  onBack,
+  onSellShares
+}: {
+  item: MenuItem;
+  state: GameState;
+  onBack: () => void;
+  onSellShares: (updater: (state: GameState) => GameState) => void;
+}) {
   return (
     <section className="detail-layout">
       <div className="detail-header">
@@ -150,12 +163,12 @@ function DetailPage({ item, state, onBack }: { item: MenuItem; state: GameState;
         </div>
       </div>
 
-      <div className="detail-panel">{renderDetailContent(item.key, state)}</div>
+      <div className="detail-panel">{renderDetailContent(item.key, state, onSellShares)}</div>
     </section>
   );
 }
 
-function renderDetailContent(page: PageKey, state: GameState) {
+function renderDetailContent(page: PageKey, state: GameState, onSellShares: (updater: (state: GameState) => GameState) => void) {
   switch (page) {
     case "company":
       return <CompanyDetail state={state} />;
@@ -164,7 +177,7 @@ function renderDetailContent(page: PageKey, state: GameState) {
     case "news":
       return <ListDetail items={state.newsArticles.map((item) => item.headline)} empty="표시할 뉴스가 없습니다." />;
     case "personal-assets":
-      return <PersonalStatusDetail state={state} />;
+      return <PersonalStatusDetail state={state} onSellShares={onSellShares} />;
     case "asset-trading":
       return <EmptyDetail title="자산 거래" body="개인 자산 매입, 매각, 가치 평가 기능을 연결할 예정입니다." />;
     case "event-log":
@@ -195,7 +208,13 @@ function CompanyDetail({ state }: { state: GameState }) {
   );
 }
 
-function PersonalStatusDetail({ state }: { state: GameState }) {
+function PersonalStatusDetail({
+  state,
+  onSellShares
+}: {
+  state: GameState;
+  onSellShares: (updater: (state: GameState) => GameState) => void;
+}) {
   const player = state.persons[0];
   const account = state.personalAccounts.find((item) => item.id === player.accountId);
   const realEstateAssets = state.personalAssets.filter((asset) => asset.assetTypeId.includes("apartment") || asset.assetTypeId.includes("office"));
@@ -251,9 +270,95 @@ function PersonalStatusDetail({ state }: { state: GameState }) {
             );
           })}
         </AssetSection>
+
+        <StockHoldingSection state={state} onSellShares={onSellShares} />
       </section>
     </div>
   );
+}
+
+function StockHoldingSection({
+  state,
+  onSellShares
+}: {
+  state: GameState;
+  onSellShares: (updater: (state: GameState) => GameState) => void;
+}) {
+  const player = state.persons[0];
+  const holdings = state.shareholdings.filter((holding) => holding.shareholderPersonId === player.id && holding.shares > 0);
+
+  return (
+    <section className="asset-section stock-section">
+      <h3>보유 주식 현황</h3>
+      {holdings.length === 0 ? (
+        <p className="empty-state">보유 주식이 없습니다.</p>
+      ) : (
+        <div className="stock-list">
+          {holdings.map((holding) => (
+            <StockHoldingRow
+              key={holding.id}
+              holding={holding}
+              state={state}
+              onSell={() => onSellShares((current) => sellShares(current, holding.id))}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function StockHoldingRow({
+  holding,
+  state,
+  onSell
+}: {
+  holding: IShareholding;
+  state: GameState;
+  onSell: () => void;
+}) {
+  const corporation = state.corporations.find((item) => item.id === holding.corporationId);
+  const totalShares = corporation?.totalShares ?? holding.shares;
+  const ownershipRatio = totalShares > 0 ? (holding.shares / totalShares) * 100 : 0;
+  const holdingValue = holding.shares * holding.acquiredPricePerShare;
+
+  return (
+    <div className="stock-row">
+      <div className="stock-main">
+        <strong>{corporation?.name ?? holding.corporationId}</strong>
+        <span>{holding.shares.toLocaleString("ko-KR")}주 · 지분율 {ownershipRatio.toFixed(2)}%</span>
+      </div>
+      <div className="stock-value">
+        <span>보유 가치</span>
+        <strong>{formatKrw(holdingValue)}</strong>
+      </div>
+      <button className="sell-button" onClick={onSell}>
+        매각
+      </button>
+    </div>
+  );
+}
+
+function sellShares(state: GameState, shareholdingId: string): GameState {
+  const holding = state.shareholdings.find((item) => item.id === shareholdingId);
+  if (!holding || !holding.shareholderPersonId || holding.shares <= 0) {
+    return state;
+  }
+
+  const sellSharesCount = Math.max(1, Math.ceil(holding.shares * 0.1));
+  const proceeds = Math.round(sellSharesCount * holding.acquiredPricePerShare);
+  const person = state.persons.find((item) => item.id === holding.shareholderPersonId);
+  if (!person) return state;
+
+  return {
+    ...state,
+    shareholdings: state.shareholdings
+      .map((item) => (item.id === shareholdingId ? { ...item, shares: item.shares - sellSharesCount } : item))
+      .filter((item) => item.shares > 0),
+    personalAccounts: state.personalAccounts.map((account) =>
+      account.id === person.accountId ? { ...account, cashBalance: account.cashBalance + proceeds } : account
+    )
+  };
 }
 
 function SummaryCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
