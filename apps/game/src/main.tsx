@@ -500,7 +500,7 @@ function NotificationSection({
                                   }}
                                   placeholder="예: 7,600,000"
                                 />
-                                <strong>{formatEokEstimate(parseFormattedNumber(counterDraft.price))}</strong>
+                                <strong>{formatCompactKrwEstimate(parseFormattedNumber(counterDraft.price))}</strong>
                               </div>
                             </label>
                             <label>
@@ -1180,11 +1180,30 @@ function formatNumberInput(value: string): string {
   return Number(digitsOnly).toLocaleString("ko-KR");
 }
 
-function formatEokEstimate(value: number): string {
-  if (!Number.isFinite(value) || value <= 0) return "(0억)";
-  const eok = value / 100_000_000;
-  const formatted = eok >= 1 ? eok.toLocaleString("ko-KR", { maximumFractionDigits: 1 }) : eok.toFixed(2);
-  return `(${formatted}억)`;
+function formatCompactKrwEstimate(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return "(0만원)";
+  if (value >= 1_000_000_000_000) {
+    return `(${(value / 1_000_000_000_000).toLocaleString("ko-KR", {
+      maximumFractionDigits: 2,
+      minimumFractionDigits: 2
+    })}조)`;
+  }
+  if (value >= 100_000_000) {
+    return `(${(value / 100_000_000).toLocaleString("ko-KR", {
+      maximumFractionDigits: 2,
+      minimumFractionDigits: 2
+    })}억)`;
+  }
+  if (value >= 10_000_000) {
+    return `(${Math.floor(value / 10_000_000).toLocaleString("ko-KR")}천만원)`;
+  }
+  if (value >= 1_000_000) {
+    return `(${Math.floor(value / 1_000_000).toLocaleString("ko-KR")}백만원)`;
+  }
+  if (value >= 100_000) {
+    return `(${Math.floor(value / 100_000).toLocaleString("ko-KR")}십만원)`;
+  }
+  return `(${Math.floor(value / 10_000).toLocaleString("ko-KR")}만원)`;
 }
 
 createRoot(document.getElementById("root")!).render(<App />);
