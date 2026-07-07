@@ -48,7 +48,7 @@ interface UserNotification {
   categoryLabel: string;
   title: string;
   body: string;
-  status: "PENDING" | "ACCEPTED" | "REJECTED" | "INFO";
+  status: "PENDING" | "ACCEPTED" | "REJECTED" | "COUNTERED" | "INFO";
   createdAt: string;
   requestedAt: string;
   responseDueAt: string;
@@ -63,6 +63,7 @@ interface UserNotification {
   };
   userVote?: VoteChoice;
   saleRequest?: SellShareRequest;
+  assetTradeRequest?: AssetTradeRequest;
 }
 
 function App() {
@@ -347,6 +348,13 @@ function PersonalStatusDetail({
               current.map((item) => (item.id === notification.id ? applyVoteChoice(item, vote, state) : item))
             )
           }
+          onCounterAssetTrade={(notification, counterPrice, message) =>
+            onUpdateNotification((current) =>
+              current.map((item) =>
+                item.id === notification.id ? applyAssetTradeCounter(item, counterPrice, message) : item
+              )
+            )
+          }
           onDelete={(notification) =>
             onUpdateNotification((current) => current.filter((item) => item.id !== notification.id))
           }
@@ -396,6 +404,7 @@ function NotificationSection({
   onAccept,
   onReject,
   onVote,
+  onCounterAssetTrade,
   onDelete
 }: {
   state: GameState;
@@ -403,17 +412,25 @@ function NotificationSection({
   onAccept: (notification: UserNotification) => void;
   onReject: (notification: UserNotification) => void;
   onVote: (notification: UserNotification, vote: VoteChoice) => void;
+  onCounterAssetTrade: (notification: UserNotification, counterPrice: number, message: string) => void;
   onDelete: (notification: UserNotification) => void;
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(notifications[0]?.id ?? null);
+  const [isOpen, setIsOpen] = useState(true);
+  const [counterDrafts, setCounterDrafts] = useState<Record<string, { price: string; message: string }>>({});
 
   return (
     <section className="asset-section notification-section">
       <div className="section-heading">
         <h3>알림</h3>
-        <span>{notifications.filter((item) => item.status === "PENDING").length}건 대기</span>
+        <div className="section-heading-actions">
+          <span>{notifications.filter((item) => item.status === "PENDING").length}건 대기</span>
+          <button className="secondary-button" onClick={() => setIsOpen((current) => !current)}>
+            {isOpen ? "닫기" : "열기"}
+          </button>
+        </div>
       </div>
-      {notifications.length === 0 ? (
+      {!isOpen ? null : notifications.length === 0 ? (
         <p className="empty-state">확인할 알림이 없습니다.</p>
       ) : (
         <div className="notification-list">
@@ -423,6 +440,8 @@ function NotificationSection({
             const actionLabels = notificationActionLabels(notification.type);
             const isVoting = isVotingNotification(notification);
             const voteWeight = getUserVoteWeight(notification, state);
+            const isAssetTradeRequest = notification.type === "ASSET_TRADE_REQUEST" && Boolean(notification.assetTradeRequest);
+            const counterDraft = counterDrafts[notification.id] ?? { price: "", message: "" };
 
             return (
               <article key={notification.id} className={isExpanded ? "notification-row expanded" : "notification-row"}>
@@ -451,6 +470,52 @@ function NotificationSection({
                       <p>{notification.agendaContent}</p>
                     </div>
                     {notification.voteStats ? <VoteStats stats={notification.voteStats} basis={notification.voteBasis} /> : null}
+                    {notification.assetTradeRequest ? (
+                      <>
+                        <DetailPair label="거래 자산" value={notification.assetTradeRequest.assetName} />
+                        <DetailPair label="상대 제안가" value={formatKrw(notification.assetTradeRequest.proposedPrice)} />
+                        {notification.assetTradeRequest.counterPrice ? (
+                          <DetailPair label="내 대안가" value={formatKrw(notification.assetTradeRequest.counterPrice)} />
+                        ) : null}
+                        {notification.assetTradeRequest.counterMessage ? (
+                          <div className="agenda-content">
+                            <span>대안 내용</span>
+                            <p>{notification.assetTradeRequest.counterMessage}</p>
+                          </div>
+                        ) : null}
+                        {canRespond ? (
+                          <div className="counter-offer-form">
+                            <label>
+                              대안 금액
+                              <input
+                                inputMode="numeric"
+                                value={counterDraft.price}
+                                onChange={(event) =>
+                                  setCounterDrafts((current) => ({
+                                    ...current,
+                                    [notification.id]: { ...counterDraft, price: event.target.value }
+                                  }))
+                                }
+                                placeholder="예: 7600000"
+                              />
+                            </label>
+                            <label>
+                              대안 설명
+                              <textarea
+                                value={counterDraft.message}
+                                onChange={(event) =>
+                                  setCounterDrafts((current) => ({
+                                    ...current,
+                                    [notification.id]: { ...counterDraft, message: event.target.value }
+                                  }))
+                                }
+                                placeholder="조건이나 결제 일정을 입력하세요"
+                              />
+                            </label>
+                          </div>
+                        ) : null}
+                      </>
+                    ) : null}
                     {notification.saleRequest ? (
                       <>
                         <DetailPair label="매각 주식 수" value={`${notification.saleRequest.sellSharesCount.toLocaleString("ko-KR")}주`} />
@@ -490,7 +555,23 @@ function NotificationSection({
                       </button>
                     </>
                   ) : null}
-                  {canRespond && !isVoting ? (
+                  {canRespond && isAssetTradeRequest ? (
+                    <>
+                      <button onClick={() => onAccept(notification)}>수락</button>
+                      <button className="secondary-button" onClick={() => onReject(notification)}>거절</button>
+                      <button
+                        className="secondary-button"
+                        onClick={() => {
+                          const counterPrice = Number(counterDraft.price);
+                          if (!Number.isFinite(counterPrice) || counterPrice <= 0) return;
+                          onCounterAssetTrade(notification, counterPrice, counterDraft.message.trim());
+                        }}
+                      >
+                        대안 제시
+                      </button>
+                    </>
+                  ) : null}
+                  {canRespond && !isVoting && !isAssetTradeRequest ? (
                     <>
                       <button onClick={() => onAccept(notification)}>{actionLabels.accept}</button>
                       <button className="secondary-button" onClick={() => onReject(notification)}>{actionLabels.reject}</button>
@@ -567,6 +648,23 @@ function applyVoteChoice(notification: UserNotification, nextVote: VoteChoice, s
     ...notification,
     userVote: nextVote,
     voteStats
+  };
+}
+
+function applyAssetTradeCounter(notification: UserNotification, counterPrice: number, message: string): UserNotification {
+  if (!notification.assetTradeRequest) {
+    return notification;
+  }
+
+  return {
+    ...notification,
+    body: `${notification.assetTradeRequest.assetName} 거래 요청에 ${formatKrw(counterPrice)} 대안을 제시했습니다.`,
+    status: "COUNTERED",
+    assetTradeRequest: {
+      ...notification.assetTradeRequest,
+      counterPrice,
+      counterMessage: message || "대안 금액으로 거래를 다시 제안했습니다."
+    }
   };
 }
 
@@ -780,6 +878,13 @@ interface SellShareRequest {
   pricePerShare: number;
 }
 
+interface AssetTradeRequest {
+  assetName: string;
+  proposedPrice: number;
+  counterPrice?: number;
+  counterMessage?: string;
+}
+
 function sellShares(state: GameState, request: SellShareRequest): GameState {
   const holding = state.shareholdings.find((item) => item.id === request.shareholdingId);
   if (!holding || !holding.shareholderPersonId || holding.shares <= 0) {
@@ -907,13 +1012,17 @@ function createInitialNotifications(state: GameState): UserNotification[] {
       categoryLabel: "자산 매입",
       title: "자산 거래 요청",
       body: "마린시티 오피스텔 매입 제안이 도착했습니다.",
-      status: "INFO",
+      status: "PENDING",
       createdAt: now,
       requestedAt: now,
       responseDueAt: addDaysIso(3),
       submitter: "청해부동산",
       agendaContent:
-        "마린시티 오피스텔을 8,000,000원에 매입하는 제안입니다. 개인 현금 유동성은 낮아지지만 임대수익형 자산 확보가 가능합니다."
+        "마린시티 오피스텔을 8,000,000원에 매입하는 제안입니다. 개인 현금 유동성은 낮아지지만 임대수익형 자산 확보가 가능합니다.",
+      assetTradeRequest: {
+        assetName: "마린시티 오피스텔",
+        proposedPrice: 8_000_000
+      }
     }
   ];
 }
@@ -926,6 +1035,8 @@ function notificationStatusLabel(status: UserNotification["status"]): string {
       return "승인됨";
     case "REJECTED":
       return "거절됨";
+    case "COUNTERED":
+      return "대안 제시됨";
     case "INFO":
       return "확인";
   }

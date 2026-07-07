@@ -14,7 +14,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -106,6 +107,16 @@ input {
   color: #1e2724;
   min-height: 42px;
   padding: 0 12px;
+  width: 100%;
+}
+
+textarea {
+  border: 1px solid #cbd6d0;
+  border-radius: 6px;
+  color: #1e2724;
+  min-height: 78px;
+  padding: 10px 12px;
+  resize: vertical;
   width: 100%;
 }
 
@@ -369,6 +380,12 @@ input {
   font-weight: 800;
 }
 
+.section-heading-actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
 .asset-list {
   display: grid;
   gap: 8px;
@@ -541,6 +558,21 @@ input {
   padding: 8px;
 }
 
+.counter-offer-form {
+  border-top: 1px solid #edf2ef;
+  display: grid;
+  gap: 10px;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(180px, 0.45fr) minmax(0, 1fr);
+  padding-top: 10px;
+}
+
+.counter-offer-form label {
+  color: #60746b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .notification-actions {
   display: flex;
   gap: 8px;
@@ -709,6 +741,7 @@ input {
   .stock-row,
   .sale-control-row,
   .private-sale-controls,
+  .counter-offer-form,
   .notification-detail,
   .vote-stats {
     grid-template-columns: 1fr;
