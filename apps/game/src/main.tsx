@@ -403,6 +403,8 @@ function NotificationSection({
         <div className="notification-list">
           {notifications.map((notification) => {
             const isExpanded = expandedId === notification.id;
+            const canRespond = canRespondToNotification(notification);
+            const actionLabels = notificationActionLabels(notification.type);
 
             return (
               <article key={notification.id} className={isExpanded ? "notification-row expanded" : "notification-row"}>
@@ -446,11 +448,14 @@ function NotificationSection({
                   <button className="secondary-button" onClick={() => setExpandedId(isExpanded ? null : notification.id)}>
                     {isExpanded ? "접기" : "자세히"}
                   </button>
-                  {notification.status === "PENDING" ? (
+                  {canRespond ? (
                     <>
-                      <button onClick={() => onAccept(notification)}>승인</button>
-                      <button className="secondary-button" onClick={() => onReject(notification)}>거절</button>
+                      <button onClick={() => onAccept(notification)}>{actionLabels.accept}</button>
+                      <button className="secondary-button" onClick={() => onReject(notification)}>{actionLabels.reject}</button>
                     </>
+                  ) : null}
+                  {notification.status === "PENDING" && !canRespond ? (
+                    <span className="notification-expired">의견 표명 기간 종료</span>
                   ) : null}
                   <button className="danger-button" onClick={() => onDelete(notification)}>
                     삭제
@@ -463,6 +468,18 @@ function NotificationSection({
       )}
     </section>
   );
+}
+
+function canRespondToNotification(notification: UserNotification): boolean {
+  return notification.status === "PENDING" && Date.now() <= new Date(notification.responseDueAt).getTime();
+}
+
+function notificationActionLabels(type: NotificationType): { accept: string; reject: string } {
+  if (type === "BOARD_VOTE" || type === "SHAREHOLDER_MEETING_VOTE") {
+    return { accept: "찬성", reject: "반대" };
+  }
+
+  return { accept: "승인", reject: "거절" };
 }
 
 function VoteStats({ stats }: { stats: NonNullable<UserNotification["voteStats"]> }) {

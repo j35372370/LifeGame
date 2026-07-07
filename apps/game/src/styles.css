@@ -568,6 +568,18 @@ input {
   color: #ffffff;
 }
 
+.notification-expired {
+  align-items: center;
+  background: #f4f0e8;
+  border-radius: 6px;
+  color: #765a2c;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 800;
+  min-height: 36px;
+  padding: 0 10px;
+}
+
 .stock-row {
   align-items: start;
   border: 1px solid #e1e8e3;
