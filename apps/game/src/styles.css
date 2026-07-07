@@ -13,7 +13,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -401,12 +402,12 @@ input {
 }
 
 .stock-row {
-  align-items: center;
+  align-items: start;
   border: 1px solid #e1e8e3;
   border-radius: 8px;
   display: grid;
   gap: 12px;
-  grid-template-columns: minmax(0, 1.4fr) minmax(160px, 0.6fr) 84px;
+  grid-template-columns: minmax(0, 1fr) minmax(140px, 0.45fr) minmax(320px, 1fr);
   padding: 12px;
 }
 
@@ -438,6 +439,70 @@ input {
   margin-top: 3px;
 }
 
+.stock-sale-form {
+  display: grid;
+  gap: 8px;
+}
+
+.sale-control-row,
+.private-sale-controls {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(92px, 0.7fr) minmax(84px, 0.7fr) minmax(120px, 1fr);
+}
+
+.private-sale-controls {
+  grid-template-columns: minmax(0, 1fr) 122px;
+}
+
+.sale-control-row input,
+.sale-control-row select,
+.private-sale-controls input {
+  border: 1px solid #cbd6d0;
+  border-radius: 6px;
+  min-height: 36px;
+  padding: 0 10px;
+}
+
+.consent-check {
+  align-items: center;
+  border: 1px solid #dce6e0;
+  border-radius: 6px;
+  display: flex;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 8px;
+}
+
+.consent-check input {
+  min-height: auto;
+  width: auto;
+}
+
+.sale-rule,
+.sale-message {
+  color: #60746b;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.sale-preview {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sale-preview span {
+  color: #60746b;
+  font-size: 12px;
+}
+
+.sale-preview strong {
+  color: #173f35;
+  font-size: 14px;
+}
+
 .sell-button {
   background: #173f35;
   border: 0;
@@ -458,7 +523,9 @@ input {
   .menu-grid.no-company,
   .finance-summary-grid,
   .asset-section-grid,
-  .stock-row {
+  .stock-row,
+  .sale-control-row,
+  .private-sale-controls {
     grid-template-columns: 1fr;
   }
 

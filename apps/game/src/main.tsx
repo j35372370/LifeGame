@@ -299,7 +299,7 @@ function StockHoldingSection({
               key={holding.id}
               holding={holding}
               state={state}
-              onSell={() => onSellShares((current) => sellShares(current, holding.id))}
+              onSell={(request) => onSellShares((current) => sellShares(current, request))}
             />
           ))}
         </div>
@@ -315,50 +315,187 @@ function StockHoldingRow({
 }: {
   holding: IShareholding;
   state: GameState;
-  onSell: () => void;
+  onSell: (request: SellShareRequest) => void;
 }) {
+  const [sellBasis, setSellBasis] = useState<"shares" | "ratio">("shares");
+  const [sellAmount, setSellAmount] = useState("1");
+  const [pricePerShare, setPricePerShare] = useState(String(Math.floor(holding.acquiredPricePerShare)));
+  const [buyerName, setBuyerName] = useState("");
+  const [hasBuyerConsent, setHasBuyerConsent] = useState(false);
+  const [message, setMessage] = useState("");
   const corporation = state.corporations.find((item) => item.id === holding.corporationId);
   const totalShares = corporation?.totalShares ?? holding.shares;
   const ownershipRatio = totalShares > 0 ? (holding.shares / totalShares) * 100 : 0;
   const holdingValue = holding.shares * holding.acquiredPricePerShare;
+  const marketPrice = Math.round(holding.acquiredPricePerShare * (corporation?.isPublic ? 1.05 : 1));
+  const expectedShares = calculateSellShareCount(holding.shares, sellBasis, Number(sellAmount));
+  const expectedProceeds = expectedShares * Number(pricePerShare || 0);
+
+  function submitSale() {
+    const result = validateShareSale({
+      holding,
+      corporationIsPublic: corporation?.isPublic ?? false,
+      sellSharesCount: expectedShares,
+      pricePerShare: Number(pricePerShare),
+      marketPrice,
+      buyerName,
+      hasBuyerConsent
+    });
+
+    if (!result.ok) {
+      setMessage(result.message);
+      return;
+    }
+
+    onSell({
+      shareholdingId: holding.id,
+      sellSharesCount: expectedShares,
+      pricePerShare: Number(pricePerShare)
+    });
+    setMessage(`${expectedShares.toLocaleString("ko-KR")}주를 ${formatKrw(expectedProceeds)}에 매각했습니다.`);
+  }
 
   return (
     <div className="stock-row">
       <div className="stock-main">
         <strong>{corporation?.name ?? holding.corporationId}</strong>
-        <span>{holding.shares.toLocaleString("ko-KR")}주 · 지분율 {ownershipRatio.toFixed(2)}%</span>
+        <span>{holding.shares.toLocaleString("ko-KR")}주 · 지분율 {ownershipRatio.toFixed(2)}% · {corporation?.isPublic ? "상장회사" : "비상장회사"}</span>
       </div>
       <div className="stock-value">
         <span>보유 가치</span>
         <strong>{formatKrw(holdingValue)}</strong>
       </div>
-      <button className="sell-button" onClick={onSell}>
-        매각
-      </button>
+      <div className="stock-sale-form">
+        <div className="sale-control-row">
+          <select value={sellBasis} onChange={(event) => setSellBasis(event.target.value as "shares" | "ratio")}>
+            <option value="shares">주식 수</option>
+            <option value="ratio">지분율</option>
+          </select>
+          <input
+            min="0"
+            type="number"
+            value={sellAmount}
+            onChange={(event) => setSellAmount(event.target.value)}
+            aria-label="매각 기준 값"
+          />
+          <input
+            min="0"
+            type="number"
+            value={pricePerShare}
+            onChange={(event) => setPricePerShare(event.target.value)}
+            aria-label="1주당 매각가"
+          />
+        </div>
+
+        {!corporation?.isPublic ? (
+          <div className="private-sale-controls">
+            <input
+              value={buyerName}
+              onChange={(event) => setBuyerName(event.target.value)}
+              placeholder="매각 대상"
+              aria-label="매각 대상"
+            />
+            <label className="consent-check">
+              <input checked={hasBuyerConsent} type="checkbox" onChange={(event) => setHasBuyerConsent(event.target.checked)} />
+              <span>상대방 동의</span>
+            </label>
+          </div>
+        ) : (
+          <p className="sale-rule">상장회사는 시장가 {formatKrw(marketPrice)}보다 낮은 가격으로 일부 수량만 매각할 수 있습니다.</p>
+        )}
+
+        <div className="sale-preview">
+          <span>예상 매각: {expectedShares.toLocaleString("ko-KR")}주</span>
+          <strong>{formatKrw(Number.isFinite(expectedProceeds) ? expectedProceeds : 0)}</strong>
+        </div>
+        <button className="sell-button" onClick={submitSale}>
+          매각
+        </button>
+        {message ? <p className="sale-message">{message}</p> : null}
+      </div>
     </div>
   );
 }
 
-function sellShares(state: GameState, shareholdingId: string): GameState {
-  const holding = state.shareholdings.find((item) => item.id === shareholdingId);
+interface SellShareRequest {
+  shareholdingId: string;
+  sellSharesCount: number;
+  pricePerShare: number;
+}
+
+function sellShares(state: GameState, request: SellShareRequest): GameState {
+  const holding = state.shareholdings.find((item) => item.id === request.shareholdingId);
   if (!holding || !holding.shareholderPersonId || holding.shares <= 0) {
     return state;
   }
 
-  const sellSharesCount = Math.max(1, Math.ceil(holding.shares * 0.1));
-  const proceeds = Math.round(sellSharesCount * holding.acquiredPricePerShare);
+  const sellSharesCount = Math.min(holding.shares, request.sellSharesCount);
+  const proceeds = Math.round(sellSharesCount * request.pricePerShare);
   const person = state.persons.find((item) => item.id === holding.shareholderPersonId);
   if (!person) return state;
 
   return {
     ...state,
     shareholdings: state.shareholdings
-      .map((item) => (item.id === shareholdingId ? { ...item, shares: item.shares - sellSharesCount } : item))
+      .map((item) => (item.id === request.shareholdingId ? { ...item, shares: item.shares - sellSharesCount } : item))
       .filter((item) => item.shares > 0),
     personalAccounts: state.personalAccounts.map((account) =>
       account.id === person.accountId ? { ...account, cashBalance: account.cashBalance + proceeds } : account
     )
   };
+}
+
+function calculateSellShareCount(ownedShares: number, basis: "shares" | "ratio", amount: number): number {
+  if (!Number.isFinite(amount) || amount <= 0) return 0;
+  if (basis === "ratio") {
+    return Math.min(ownedShares, Math.floor(ownedShares * (amount / 100)));
+  }
+  return Math.min(ownedShares, Math.floor(amount));
+}
+
+function validateShareSale({
+  holding,
+  corporationIsPublic,
+  sellSharesCount,
+  pricePerShare,
+  marketPrice,
+  buyerName,
+  hasBuyerConsent
+}: {
+  holding: IShareholding;
+  corporationIsPublic: boolean;
+  sellSharesCount: number;
+  pricePerShare: number;
+  marketPrice: number;
+  buyerName: string;
+  hasBuyerConsent: boolean;
+}): { ok: boolean; message: string } {
+  if (!Number.isFinite(sellSharesCount) || sellSharesCount <= 0) {
+    return { ok: false, message: "매각할 주식 수를 1주 이상 입력해야 합니다." };
+  }
+  if (sellSharesCount > holding.shares) {
+    return { ok: false, message: "보유 주식 수보다 많이 매각할 수 없습니다." };
+  }
+  if (!Number.isFinite(pricePerShare) || pricePerShare <= 0) {
+    return { ok: false, message: "1주당 매각가를 입력해야 합니다." };
+  }
+  if (corporationIsPublic) {
+    if (sellSharesCount >= holding.shares) {
+      return { ok: false, message: "상장회사 주식은 한 번에 전량 매각할 수 없습니다." };
+    }
+    if (pricePerShare >= marketPrice) {
+      return { ok: false, message: "상장회사 주식은 현재 시장가보다 낮은 가격으로만 매각할 수 있습니다." };
+    }
+  } else {
+    if (!buyerName.trim()) {
+      return { ok: false, message: "비상장회사 주식은 매각 대상을 입력해야 합니다." };
+    }
+    if (!hasBuyerConsent) {
+      return { ok: false, message: "비상장회사 주식은 매각 대상의 동의가 필요합니다." };
+    }
+  }
+
+  return { ok: true, message: "매각할 수 있습니다." };
 }
 
 function SummaryCard({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
